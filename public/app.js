@@ -426,7 +426,7 @@ async function uploadImage(cardId, file) {
 
 const ALBUM_POCKETS = 9;
 const albumNarrow = window.matchMedia("(max-width: 760px)");
-const album = { owner: "", set: "all", pages: [], leaves: 0, flipped: 0, side: "right", rx: 10, ry: 0, drag: null };
+const album = { owner: "", set: "all", pages: [], leaves: 0, flipped: 0, drag: null, curl: null };
 
 function albumQty(cardId) {
   return album.owner === "__group" ? state.owned.get(cardId)?.size || 0 : qty(cardId, album.owner);
@@ -471,13 +471,13 @@ function albumPageHtml(page) {
   const setName = album.set === "all" ? "Todas las colecciones" : setById(album.set)?.name;
   switch (page.kind) {
     case "cover":
-      return `<div class="badge30 big"><span>30</span></div><h2>Pokémon 30</h2><p>${esc(setName)}</p><p class="owner">${esc(albumOwnerName())}</p>`;
+      return "";
     case "inside":
-      return `<p>Álbum de ${esc(albumOwnerName())}</p><strong>${have} / ${cards.length}</strong><div class="bar"><i style="width:${pct}%"></i></div><p>${pct}% completado · faltan ${cards.length - have}</p>`;
+      return `<p>Álbum de ${esc(albumOwnerName())}</p><p>${esc(setName)}</p><strong>${have} / ${cards.length}</strong><div class="bar"><i style="width:${pct}%"></i></div><p>${pct}% completado · faltan ${cards.length - have}</p>`;
     case "pockets":
       return `<div class="album-pockets">${page.cards.map(pocketHtml).join("")}</div><div class="album-foot"><span>${esc(page.set.name)}</span><span>${page.number}</span></div>`;
     case "back":
-      return `<div class="badge30"><span>30</span></div>`;
+      return "";
     default:
       return "";
   }
@@ -485,22 +485,31 @@ function albumPageHtml(page) {
 
 function fillAlbumFace(face) {
   const page = album.pages[Number(face.dataset.page)];
-  face.classList.toggle("album-cover", page.kind === "cover" || page.kind === "back");
+  face.dataset.filled = "1";
+  if (!page) return; // en móvil el dorso de cada hoja va en blanco
+  face.classList.toggle("album-cover", page.kind === "cover");
+  face.classList.toggle("album-backcover", page.kind === "back");
   face.classList.toggle("album-inside", page.kind === "inside");
   face.innerHTML = albumPageHtml(page);
-  face.dataset.filled = "1";
 }
 
+// En móvil cabe una sola página: cada hoja lleva una por delante y pasar siempre es girar una hoja
+const albumPerLeaf = () => (albumNarrow.matches ? 1 : 2);
+const albumMaxFlipped = () => (albumNarrow.matches ? album.leaves - 1 : album.leaves);
+
 function buildAlbum() {
+  finishCurl();
+  const per = albumPerLeaf();
   album.pages = albumPages();
-  album.leaves = album.pages.length / 2;
-  album.flipped = Math.min(album.flipped, album.leaves);
-  let html = `<div class="album-block left"></div><div class="album-block right"></div>`;
+  album.leaves = album.pages.length / per;
+  album.flipped = Math.min(album.flipped, albumMaxFlipped());
+  let html = `<div class="album-block left"></div><div class="album-block right"></div><div class="album-cast"></div>`;
   for (let i = 0; i < album.leaves; i++) {
-    html += `<div class="album-leaf" data-leaf="${i}"><div class="album-face front" data-page="${i * 2}"></div><div class="album-face back" data-page="${i * 2 + 1}"></div></div>`;
+    const back = per === 2 ? `data-page="${i * 2 + 1}"` : "";
+    html += `<div class="album-leaf" data-leaf="${i}"><div class="album-face front" data-page="${i * per}"></div><div class="album-face back" ${back}></div></div>`;
   }
   $("#album-book").innerHTML = html;
-  $("#album-range").max = album.leaves;
+  $("#album-range").max = albumMaxFlipped();
   updateAlbum();
 }
 
@@ -516,62 +525,155 @@ function albumLeafTransform(i) {
   return i < album.flipped ? `rotateY(-180deg) translateZ(${(album.flipped - 1 - i) * 0.5}px)` : `rotateY(0deg) translateZ(${-(i - album.flipped) * 0.5}px)`;
 }
 
-function updateAlbumBook() {
+function updateAlbumBook(flipped = album.flipped) {
+  const narrow = albumNarrow.matches;
   let x = 0;
-  if (albumNarrow.matches) x = album.side === "left" ? 25 : -25;
-  else if (album.flipped === 0) x = -25;
-  else if (album.flipped === album.leaves) x = 25;
-  $("#album-book").style.transform = `translateX(${x}%) rotateX(${album.rx}deg) rotateY(${album.ry}deg)`;
+  if (narrow || flipped === 0) x = -25; // lomo a la izquierda: se ve la página derecha
+  else if (flipped === album.leaves) x = 25;
+  $("#album-book").style.transform = `translateX(${x}%) rotateX(${narrow ? 0 : 5}deg)`;
+  $("#album-book .album-block.left").style.display = flipped > 0 ? "" : "none";
+  $("#album-book .album-block.right").style.display = flipped < album.leaves ? "" : "none";
 }
 
 function updateAlbum() {
-  const { flipped, leaves } = album;
+  const { flipped } = album;
   document.querySelectorAll("#album-book .album-leaf").forEach((leaf) => {
     const i = Number(leaf.dataset.leaf);
-    leaf.classList.remove("dragging");
     leaf.style.transform = albumLeafTransform(i);
     // Solo se pintan las hojas cercanas: así no se piden las 209 imágenes de golpe
     const near = i >= flipped - 2 && i <= flipped + 1;
     leaf.style.display = near ? "" : "none";
     if (near) leaf.querySelectorAll('.album-face:not([data-filled="1"])').forEach(fillAlbumFace);
   });
-  $("#album-book .album-block.left").style.display = flipped > 0 ? "" : "none";
-  $("#album-book .album-block.right").style.display = flipped < leaves ? "" : "none";
   updateAlbumBook();
+  const max = albumMaxFlipped();
   $("#album-range").value = flipped;
   $("#album-prev").disabled = flipped === 0;
-  $("#album-next").disabled = flipped === leaves;
-  const numbers = [album.pages[flipped * 2 - 1], album.pages[flipped * 2]].filter((p) => p?.kind === "pockets").map((p) => p.number);
+  $("#album-next").disabled = flipped === max;
+  const shown = albumNarrow.matches ? [album.pages[flipped]] : [album.pages[flipped * 2 - 1], album.pages[flipped * 2]];
+  const numbers = shown.filter((p) => p?.kind === "pockets").map((p) => p.number);
   const total = album.pages.filter((p) => p.kind === "pockets").length;
-  $("#album-pos").textContent = numbers.length ? `Pág. ${numbers.join("–")} de ${total}` : flipped === 0 ? "Portada" : flipped === leaves ? "Contraportada" : "Interior";
+  $("#album-pos").textContent = numbers.length ? `Pág. ${numbers.join("–")} de ${total}` : flipped === 0 ? "Portada" : flipped === max ? "Contraportada" : "Interior";
 }
 
-function albumStep(dir) {
-  const narrow = albumNarrow.matches;
-  if (dir > 0) {
-    if (narrow && album.side === "left" && album.flipped < album.leaves) album.side = "right";
-    else if (album.flipped < album.leaves) { album.flipped++; album.side = "left"; }
-  } else if (narrow && album.side === "right" && album.flipped > 0) album.side = "left";
-  else if (album.flipped > 0) { album.flipped--; album.side = album.flipped === 0 ? "right" : narrow ? "right" : album.side; }
+// ------------------------------------------------------------- paso de hoja ondulado
+
+// La hoja que gira se parte en tiras verticales anidadas. Cada tira gira un poco respecto a la
+// anterior, y así el papel se curva de verdad en 3D en vez de girar como una tabla rígida.
+const CURL_MAX_BEND = 75; // grados entre el lomo y el borde a mitad de giro
+const CURL_WAVE = 16; // grados de la onda que recorre el papel
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+function curlFaceHtml(face, offset, strips) {
+  // decoding=sync: las imágenes ya están en caché y así la copia no parpadea en el primer fotograma
+  const inner = face.innerHTML.replace(/<img /g, '<img decoding="sync" ');
+  return `<div class="${esc(face.className)} curl-page" style="width:${strips * 100}%;left:${-offset * 100}%">${inner}</div><i class="curl-shade"></i>`;
+}
+
+function startCurl(dir) {
+  finishCurl();
+  const i = dir > 0 ? album.flipped : album.flipped - 1;
+  if (i < 0 || i >= album.leaves || (dir > 0 && album.flipped >= albumMaxFlipped())) return null;
+  const leaf = $(`#album-book .album-leaf[data-leaf="${i}"]`);
+  const front = leaf.querySelector(".album-face.front");
+  const back = leaf.querySelector(".album-face.back");
+  const strips = 8;
+  let html = "";
+  for (let s = strips - 1; s >= 0; s--) {
+    html = `<div class="curl-strip" ${s === 0 ? `style="width:${100 / strips}%"` : ""}>
+      <div class="curl-face front">${curlFaceHtml(front, s, strips)}</div>
+      <div class="curl-face back">${curlFaceHtml(back, strips - 1 - s, strips)}</div>${html}</div>`;
+  }
+  const root = document.createElement("div");
+  root.className = "album-curl";
+  root.innerHTML = html;
+  root.inert = true;
+  leaf.append(root);
+  leaf.classList.add("curling");
+  leaf.style.transform = "none";
+  const curl = {
+    leaf, root, dir, t: dir > 0 ? 0 : 1, commit: false, raf: 0,
+    strips: [...root.querySelectorAll(".curl-strip")],
+    shades: [...root.querySelectorAll(".curl-strip")].map((el) => [...el.children].filter((c) => c.classList.contains("curl-face")).map((f) => f.querySelector(".curl-shade"))),
+    // Las tapas del binder son rígidas: giran sin doblarse
+    stiff: album.pages[i * albumPerLeaf()].kind === "cover" || album.pages[i * albumPerLeaf() + 1]?.kind === "back",
+  };
+  album.curl = curl;
+  setCurl(curl, curl.t);
+  return curl;
+}
+
+function setCurl(curl, t) {
+  curl.t = t;
+  const bend = curl.stiff ? 0 : Math.sin(Math.PI * t);
+  const n = curl.strips.length;
+  const light = [];
+  let prev = 0;
+  curl.strips.forEach((strip, i) => {
+    const s = (i + 0.5) / n;
+    // El borde exterior va por delante del lomo y una onda recorre el papel mientras gira
+    const raw = -180 * t - bend * (CURL_MAX_BEND * (s - 0.5) + CURL_WAVE * Math.sin(2 * Math.PI * (s * 1.2 - t)));
+    // Limitado a [-180, 0]: el papel nunca atraviesa el plano de las otras páginas
+    const angle = Math.min(0, Math.max(-180, raw));
+    strip.style.transform = `rotateY(${angle - prev}deg)`;
+    prev = angle;
+    // Luz desde un lado: un brillo donde el papel la refleja y sombra en el resto marcan la curva
+    const shine = Math.max(0, 1 - Math.abs(angle + 50) / 30) * 0.16;
+    light.push(shine > 0 ? shine : -0.5 * Math.abs(Math.sin((angle * Math.PI) / 180)));
+  });
+  // Cada tira funde su luz con la de las vecinas para que la curva se vea continua y no a bandas
+  const tone = (v) => (v > 0 ? `rgba(255, 255, 255, ${v})` : `rgba(0, 0, 0, ${-v})`);
+  curl.shades.forEach(([front, back], i) => {
+    const left = tone((light[i] + light[Math.max(0, i - 1)]) / 2);
+    const right = tone((light[i] + light[Math.min(n - 1, i + 1)]) / 2);
+    front.style.background = `linear-gradient(90deg, ${left}, ${right})`;
+    back.style.background = `linear-gradient(90deg, ${right}, ${left})`;
+  });
+  $("#album-book .album-cast").style.opacity = Math.sin(Math.PI * t) * 0.8;
+}
+
+// Lleva la hoja a su sitio: al otro lado si se confirma el paso o de vuelta si no
+function settleCurl(curl, commit, fromDrag) {
+  curl.commit = commit;
+  if (commit) updateAlbumBook(album.flipped + curl.dir);
+  const from = curl.t;
+  const to = commit === curl.dir > 0 ? 1 : 0;
+  const ms = reduceMotion.matches ? 0 : (fromDrag ? 200 : 350) + (fromDrag ? 450 : 600) * Math.abs(to - from);
+  const ease = fromDrag ? (x) => 1 - (1 - x) * (1 - x) : (x) => 0.5 - 0.5 * Math.cos(Math.PI * x);
+  const started = performance.now();
+  const frame = (now) => {
+    const x = ms ? Math.min(1, (now - started) / ms) : 1;
+    setCurl(curl, from + (to - from) * ease(x));
+    if (x < 1) curl.raf = requestAnimationFrame(frame);
+    else finishCurl();
+  };
+  curl.raf = requestAnimationFrame(frame);
+}
+
+function finishCurl() {
+  const curl = album.curl;
+  if (!curl) return;
+  album.curl = null;
+  cancelAnimationFrame(curl.raf);
+  curl.root.remove();
+  curl.leaf.classList.remove("curling");
+  $("#album-book .album-cast").style.opacity = 0;
+  if (curl.commit) album.flipped += curl.dir;
   updateAlbum();
 }
 
-// Hoja que se mueve al pasar en esa dirección; null si en móvil basta con desplazar el libro
-function albumDragLeaf(dir) {
-  if (albumNarrow.matches && (dir > 0 ? album.side !== "right" : album.side !== "left")) return null;
-  const i = dir > 0 ? album.flipped : album.flipped - 1;
-  return i >= 0 && i < album.leaves ? $(`#album-book .album-leaf[data-leaf="${i}"]`) : null;
+function albumTurn(dir) {
+  const curl = startCurl(dir);
+  if (curl) settleCurl(curl, true, false);
 }
 
 function setupAlbum() {
   const stage = $("#album-stage");
   const openAlbum = () => {
+    finishCurl();
     album.owner = state.me.is_admin ? "__group" : state.me.id;
     album.set = state.set;
     album.flipped = 0;
-    album.side = "right";
-    album.rx = albumNarrow.matches ? 4 : 10;
-    album.ry = 0;
     $("#album-owner").innerHTML =
       (state.me.is_admin ? "" : `<option value="${esc(state.me.id)}">Mi álbum</option>`) +
       `<option value="__group">Entre todos</option>` +
@@ -583,30 +685,33 @@ function setupAlbum() {
     buildAlbum();
   };
   $("#btn-album").addEventListener("click", openAlbum);
+  $("#dlg-album").addEventListener("close", finishCurl);
   $("#album-owner").addEventListener("change", (e) => { album.owner = e.target.value; buildAlbum(); });
-  $("#album-set").addEventListener("change", (e) => { album.set = e.target.value; album.flipped = 0; album.side = "right"; buildAlbum(); });
-  $("#album-prev").addEventListener("click", () => albumStep(-1));
-  $("#album-next").addEventListener("click", () => albumStep(1));
+  $("#album-set").addEventListener("change", (e) => { album.set = e.target.value; album.flipped = 0; buildAlbum(); });
+  $("#album-prev").addEventListener("click", () => albumTurn(-1));
+  $("#album-next").addEventListener("click", () => albumTurn(1));
   $("#album-range").addEventListener("input", (e) => {
+    finishCurl();
     album.flipped = Number(e.target.value);
-    album.side = album.flipped === 0 ? "right" : album.flipped === album.leaves ? "left" : albumNarrow.matches ? "right" : album.side;
     updateAlbum();
   });
   $("#dlg-album").addEventListener("keydown", (e) => {
     if (/^(SELECT|INPUT)$/.test(e.target.tagName) || $("#dlg-card").open) return;
-    if (e.key === "ArrowRight") albumStep(1);
-    else if (e.key === "ArrowLeft") albumStep(-1);
+    if (e.key === "ArrowRight") albumTurn(1);
+    else if (e.key === "ArrowLeft") albumTurn(-1);
   });
-  albumNarrow.addEventListener("change", () => { if ($("#dlg-album").open) updateAlbum(); });
+  // Al girar el móvil cambia de una a dos páginas por hoja: se conserva la página que se estaba viendo
+  albumNarrow.addEventListener("change", (e) => {
+    if (!$("#dlg-album").open) return;
+    finishCurl();
+    album.flipped = e.matches ? Math.max(0, album.flipped * 2 - 1) : Math.ceil(album.flipped / 2);
+    buildAlbum();
+  });
 
-  stage.addEventListener("dblclick", () => {
-    album.rx = albumNarrow.matches ? 4 : 10;
-    album.ry = 0;
-    updateAlbumBook();
-  });
+  // Deslizar solo pasa páginas: el álbum no se mueve ni gira con el dedo
   stage.addEventListener("pointerdown", (e) => {
     if (e.button) return;
-    album.drag = { x: e.clientX, y: e.clientY, onPage: !!e.target.closest(".album-face"), mode: null, rx: album.rx, ry: album.ry, t: 0 };
+    album.drag = { x: e.clientX, y: e.clientY, at: performance.now(), mode: null, curl: null };
   });
   stage.addEventListener("pointermove", (e) => {
     const d = album.drag;
@@ -614,35 +719,30 @@ function setupAlbum() {
     const dx = e.clientX - d.x;
     const dy = e.clientY - d.y;
     if (!d.mode) {
-      if (Math.hypot(dx, dy) < 8) return; // por debajo de esto es un clic en la carta
-      stage.setPointerCapture(e.pointerId);
+      if (Math.hypot(dx, dy) < 8) return; // por debajo de esto es un toque en la carta
+      d.mode = Math.abs(dx) > Math.abs(dy) ? "flip" : "none";
+      if (d.mode === "none") return;
+      d.dir = dx < 0 ? 1 : -1;
+      d.curl = startCurl(d.dir);
+      if (!d.curl) { d.mode = "none"; return; }
+      try { stage.setPointerCapture(e.pointerId); } catch {}
       stage.classList.add("grabbing");
-      d.mode = d.onPage && Math.abs(dx) > Math.abs(dy) ? "flip" : "orbit";
-      if (d.mode === "flip") {
-        d.dir = dx < 0 ? 1 : -1;
-        d.leaf = albumDragLeaf(d.dir);
-        d.leaf?.classList.add("dragging");
-      } else $("#album-book").classList.add("orbiting");
     }
-    if (d.mode === "orbit") {
-      album.ry = Math.max(-40, Math.min(40, d.ry + dx * 0.25));
-      album.rx = Math.max(-25, Math.min(40, d.rx - dy * 0.25));
-      updateAlbumBook();
-    } else {
-      const width = $("#album-book").offsetWidth / 2;
-      d.t = Math.max(0, Math.min(1, (-dx * d.dir) / width));
-      if (d.leaf) d.leaf.style.transform = `rotateY(${d.dir > 0 ? -180 * d.t : -180 + 180 * d.t}deg) translateZ(1px)`;
-    }
+    if (d.mode !== "flip") return;
+    const width = ($("#album-book").offsetWidth / 2) * (albumNarrow.matches ? 0.9 : 1.5);
+    const p = Math.max(0, Math.min(1, (-dx * d.dir) / width));
+    d.progress = p;
+    d.dx = dx;
+    setCurl(d.curl, d.dir > 0 ? p : 1 - p);
   });
   const endDrag = (e) => {
     const d = album.drag;
     album.drag = null;
-    if (!d?.mode) return;
     stage.classList.remove("grabbing");
-    $("#album-book").classList.remove("orbiting");
-    if (d.mode !== "flip") return;
-    if (e.type !== "pointercancel" && d.t > 0.25) albumStep(d.dir);
-    else updateAlbum();
+    if (d?.mode !== "flip" || album.curl !== d.curl) return;
+    // Un gesto rápido y corto también cuenta: en el móvil el dedo no suele recorrer media pantalla
+    const flick = performance.now() - d.at < 300 && Math.abs(d.dx) > 30 && Math.sign(d.dx) === -d.dir;
+    settleCurl(d.curl, e.type !== "pointercancel" && (d.progress > 0.25 || flick), true);
   };
   stage.addEventListener("pointerup", endDrag);
   stage.addEventListener("pointercancel", endDrag);

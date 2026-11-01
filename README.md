@@ -22,7 +22,7 @@ App colaborativa en un **Cloudflare Worker** para llevar el control de las carta
 
 ## Vista de álbum
 
-El botón **Vista de álbum** abre un álbum en 3D con 9 fundas por página, en orden de colección y número. Las cartas que no se tienen dejan su funda vacía con el número impreso. Se puede ver el álbum propio, el de otra persona o el de todo el grupo.
+El botón **Vista de álbum** abre un álbum en 3D con la portada del binder del 30.º aniversario y 9 fundas por página, en orden de colección y número. Deslizar pasa las páginas con un efecto de papel ondulado; en el móvil se ve una página cada vez. Las cartas que no se tienen dejan su funda vacía con el número impreso. Se puede ver el álbum propio, el de otra persona o el de todo el grupo.
 
 ## Precios de Cardmarket
 
