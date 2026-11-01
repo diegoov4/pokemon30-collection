@@ -1,0 +1,115 @@
+<section id="login" class="login">
+  <form class="login-card" id="form-login" autocomplete="on">
+    <div class="badge30 big"><span>30</span></div>
+    <h1>Pokémon 30</h1>
+    <p>La colección compartida de cartas oficiales en español del <strong>30.º aniversario</strong>.</p>
+    <label>Usuario <input id="login-user" name="username" autocomplete="username" autocapitalize="none" required /></label>
+    <label>Contraseña <input id="login-pass" name="password" type="password" autocomplete="current-password" required /></label>
+    <button class="btn primary wide" id="login-btn" disabled>Conectando…</button>
+    <p id="login-error" class="login-error" hidden></p>
+  </form>
+</section>
+
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="brand">
+      <div class="badge30"><span>30</span></div>
+      <div>
+        <h1>Pokémon 30</h1>
+        <p>Colección compartida · cartas oficiales en español</p>
+      </div>
+    </div>
+    <div class="me">
+      <button class="btn ghost" id="btn-add" title="Dar de alta una carta nueva (promos, productos futuros…)">＋ Añadir carta</button>
+      <button class="btn ghost" id="btn-members" hidden>Miembros</button>
+      <span id="me-avatar"></span>
+      <button class="btn ghost small" id="btn-logout">Salir</button>
+    </div>
+  </header>
+
+  <main>
+    <p class="notice" id="readonly-note" hidden></p>
+    <section class="summary">
+      <div class="group-stat">
+        <span class="label">Entre todos</span>
+        <strong id="group-count">0 / 0</strong>
+        <div class="bar"><i id="group-bar"></i></div>
+        <span class="sub" id="group-sub"></span>
+      </div>
+      <div class="members" id="members"></div>
+    </section>
+
+    <section class="toolbar">
+      <div class="sets" id="sets" role="tablist"></div>
+      <div class="filters">
+        <input type="search" id="q" placeholder="Buscar por nombre, número o ilustrador…" />
+        <select id="f-rarity"><option value="">Todas las rarezas</option></select>
+        <select id="f-owner"></select>
+        <div class="seg" role="group" aria-label="Vista">
+          <button data-view="grid" class="on">Cartas</button>
+          <button data-view="table">Tabla</button>
+        </div>
+      </div>
+    </section>
+
+    <button class="img-warning" id="img-warning" hidden></button>
+    <p class="count" id="result-count"></p>
+    <section id="grid" class="grid"></section>
+    <section id="table-wrap" class="table-wrap" hidden><table id="table"></table></section>
+  </main>
+
+  <footer>Pokémon y sus marcas son © de sus propietarios; app de fans sin afiliación.</footer>
+</div>
+
+<dialog id="dlg-add">
+  <form method="dialog" id="form-add">
+    <h2>Añadir carta</h2>
+    <p class="hint">Para promos o cartas nuevas que aún no aparezcan. Quedará visible para todos.</p>
+    <label>Colección
+      <select name="set" id="add-set"></select>
+    </label>
+    <label id="new-set-row" hidden>Nombre de la nueva colección
+      <input name="new_set" id="add-new-set" placeholder="p.ej. Promos Caja Élite 30.º Aniversario" />
+    </label>
+    <div class="row">
+      <label>Número <input name="number" id="add-number" required placeholder="162" /></label>
+      <label>Nombre <input name="name" id="add-name" required placeholder="Pikachu" /></label>
+    </div>
+    <label>Rareza <input name="rarity" id="add-rarity" list="rarities" placeholder="Promo" /></label>
+    <datalist id="rarities"></datalist>
+    <label>Nota (ilustrador, producto…) <input name="note" id="add-note" /></label>
+    <label>Imagen de la carta <b class="req">(obligatoria)</b>
+      <input name="file" id="add-file" type="file" accept="image/jpeg,image/png,image/webp" />
+    </label>
+    <p class="form-error" id="add-error" hidden></p>
+    <menu>
+      <button value="cancel" class="btn ghost" formnovalidate>Cancelar</button>
+      <button value="ok" class="btn primary">Guardar</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="dlg-members">
+  <form method="dialog" id="form-member">
+    <h2>Miembros</h2>
+    <p class="hint">Crea un usuario para cada persona del grupo. Solo el administrador ve esta pantalla.</p>
+    <ul class="member-list" id="member-list"></ul>
+    <fieldset>
+      <legend>Nuevo usuario</legend>
+      <div class="row">
+        <label>Usuario <input id="m-user" autocapitalize="none" placeholder="lucia" /></label>
+        <label>Nombre <input id="m-name" placeholder="Lucía" /></label>
+      </div>
+      <label>Contraseña <input id="m-pass" placeholder="mínimo 4 caracteres" /></label>
+    </fieldset>
+    <p class="form-error" id="m-error" hidden></p>
+    <menu>
+      <button value="cancel" class="btn ghost" formnovalidate>Cerrar</button>
+      <button value="ok" class="btn primary">Crear usuario</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="dlg-card" class="card-dialog"></dialog>
+<div id="toast" class="toast" hidden></div>
+<input type="file" id="file-pick" accept="image/jpeg,image/png,image/webp" hidden />

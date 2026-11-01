@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pokémon 30 · Colección compartida</title>
+  <meta name="description" content="Control colaborativo de las cartas oficiales en español del 30.º aniversario de Pokémon." />
+  <meta name="theme-color" content="#0b1020" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- Pantalla de acceso -->
+  <section id="login" class="login" hidden>
+    <form class="login-card" id="form-login" autocomplete="on">
+      <div class="badge30 big"><span>30</span></div>
+      <h1>Pokémon 30</h1>
+      <p>La colección compartida de cartas oficiales en español del <strong>30.º aniversario</strong>.</p>
+      <label>Usuario <input id="login-user" name="username" autocomplete="username" autocapitalize="none" required /></label>
+      <label>Contraseña <input id="login-pass" name="password" type="password" autocomplete="current-password" required /></label>
+      <button class="btn primary wide" id="login-btn">Entrar</button>
+      <p id="login-error" class="login-error" hidden></p>
+    </form>
+  </section>
+
+  <!-- App -->
+  <div id="app" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <div class="badge30"><span>30</span></div>
+        <div>
+          <h1>Pokémon 30</h1>
+          <p>Colección compartida · cartas oficiales en español</p>
+        </div>
+      </div>
+      <div class="me">
+        <button class="btn ghost" id="btn-add" title="Dar de alta una carta nueva (promos, productos futuros…)">＋ Añadir carta</button>
+        <button class="btn ghost" id="btn-sync" title="Buscar cartas nuevas en TCGdex">⟳ Sincronizar</button>
+        <button class="btn ghost" id="btn-members">Miembros</button>
+        <span id="me-avatar"></span>
+        <button class="btn ghost small" id="btn-logout">Salir</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="summary">
+        <div class="group-stat">
+          <span class="label">Entre todos</span>
+          <strong id="group-count">0 / 0</strong>
+          <div class="bar"><i id="group-bar"></i></div>
+          <span class="sub" id="group-sub"></span>
+        </div>
+        <div class="members" id="members"></div>
+      </section>
+
+      <section class="toolbar">
+        <div class="sets" id="sets" role="tablist"></div>
+        <div class="filters">
+          <input type="search" id="q" placeholder="Buscar por nombre, número o ilustrador…" />
+          <select id="f-rarity"><option value="">Todas las rarezas</option></select>
+          <select id="f-owner"></select>
+          <div class="seg" role="group" aria-label="Vista">
+            <button data-view="grid" class="on">Cartas</button>
+            <button data-view="table">Tabla</button>
+          </div>
+        </div>
+      </section>
+
+      <button class="img-warning" id="img-warning" hidden></button>
+      <p class="count" id="result-count"></p>
+      <section id="grid" class="grid"></section>
+      <section id="table-wrap" class="table-wrap" hidden><table id="table"></table></section>
+    </main>
+
+    <footer>
+      Datos de cartas: lista oficial + <a href="https://tcgdex.dev" target="_blank" rel="noopener">TCGdex</a> (sincronización diaria). Pokémon y sus marcas son © de sus propietarios; app de fans sin afiliación.
+    </footer>
+  </div>
+
+  <dialog id="dlg-add">
+    <form method="dialog" id="form-add">
+      <h2>Añadir carta</h2>
+      <p class="hint">Para promos o cartas nuevas que aún no aparezcan. Quedará visible para todos.</p>
+      <label>Colección
+        <select name="set_id" id="add-set"></select>
+      </label>
+      <label id="new-set-row" hidden>Nombre de la nueva colección
+        <input name="new_set" placeholder="p.ej. Promos Caja Élite 30.º Aniversario" />
+      </label>
+      <div class="row">
+        <label>Número <input name="number" required placeholder="162" /></label>
+        <label>Nombre <input name="name" required placeholder="Pikachu" /></label>
+      </div>
+      <label>Rareza <input name="rarity" list="rarities" placeholder="Promo" /></label>
+      <datalist id="rarities"></datalist>
+      <label>Nota (ilustrador, producto…) <input name="note" /></label>
+      <fieldset class="img-field">
+        <legend>Imagen de la carta <b>(obligatoria)</b></legend>
+        <label>Foto o escaneo <input name="file" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+        <label>…o URL de la imagen <input name="image" type="url" placeholder="https://…" /></label>
+      </fieldset>
+      <p class="form-error" id="add-error" hidden></p>
+      <menu>
+        <button value="cancel" class="btn ghost" formnovalidate>Cancelar</button>
+        <button value="ok" class="btn primary">Guardar</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-members">
+    <form method="dialog" id="form-member">
+      <h2>Miembros</h2>
+      <ul class="member-list" id="member-list"></ul>
+      <fieldset id="new-member">
+        <legend>Nuevo usuario</legend>
+        <div class="row">
+          <label>Usuario <input id="m-user" autocapitalize="none" placeholder="lucia" /></label>
+          <label>Nombre <input id="m-name" placeholder="Lucía" /></label>
+        </div>
+        <label>Contraseña <input id="m-pass" placeholder="mínimo 4 caracteres" /></label>
+        <button value="create" class="btn primary">Crear usuario</button>
+      </fieldset>
+      <fieldset>
+        <legend>Cambiar mi contraseña</legend>
+        <div class="row">
+          <label>Actual <input id="p-cur" type="password" autocomplete="current-password" /></label>
+          <label>Nueva <input id="p-new" type="password" autocomplete="new-password" /></label>
+        </div>
+        <button value="password" class="btn ghost">Cambiar contraseña</button>
+      </fieldset>
+      <p class="form-error" id="m-error" hidden></p>
+      <menu><button value="cancel" class="btn ghost" formnovalidate>Cerrar</button></menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-card" class="card-dialog"></dialog>
+  <div id="toast" class="toast" hidden></div>
+  <input type="file" id="file-pick" accept="image/jpeg,image/png,image/webp" hidden />
+
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

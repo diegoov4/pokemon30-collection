@@ -1,0 +1,1041 @@
+<title>Pokémon 30</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #0b1020;
+  --bg2: #111833;
+  --panel: #151d3b;
+  --panel2: #1b2550;
+  --line: #27315e;
+  --text: #eef1ff;
+  --muted: #98a2cf;
+  --gold: #ffcb05;
+  --gold2: #f5a300;
+  --blue: #3d7dca;
+  --red: #e3350d;
+  --radius: 14px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: "Outfit", system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(255, 203, 5, 0.12), transparent 60%),
+    radial-gradient(900px 500px at -10% 10%, rgba(61, 125, 202, 0.18), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+a { color: var(--gold); }
+[hidden] { display: none !important; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font: inherit; font-weight: 600; font-size: 14px;
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 9px 16px; cursor: pointer; color: var(--text);
+  background: var(--panel); text-decoration: none; white-space: nowrap;
+  transition: background .15s, transform .1s, border-color .15s;
+}
+.btn:hover { background: var(--panel2); border-color: #3a4785; }
+.btn:active { transform: translateY(1px); }
+.btn.ghost { background: transparent; }
+.btn.small { padding: 6px 12px; font-size: 13px; }
+.btn.primary { background: var(--gold); color: #1a1400; border-color: var(--gold); }
+.btn.primary:hover { background: #ffd83d; }
+.btn.google { background: #fff; color: #1f1f1f; border: 0; padding: 13px 22px; font-size: 16px; box-shadow: var(--shadow); }
+.btn.google:hover { background: #f1f3f4; }
+
+/* ------- badge 30 */
+.badge30 {
+  width: 46px; height: 46px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; position: relative;
+  background: linear-gradient(180deg, var(--red) 0 46%, #111 46% 54%, #fff 54%);
+  box-shadow: 0 0 0 3px #111, 0 6px 18px rgba(227, 53, 13, .35);
+}
+.badge30 span {
+  width: 52%; height: 52%; border-radius: 50%; background: #fff; border: 3px solid #111;
+  display: grid; place-items: center; font-weight: 800; font-size: 11px; color: #111;
+}
+.badge30.big { width: 110px; height: 110px; margin: 0 auto 18px; }
+.badge30.big span { font-size: 22px; border-width: 5px; }
+
+/* ------- login */
+.login { min-height: 90vh; display: grid; place-items: center; padding: 24px 16px; }
+.login-card {
+  max-width: 440px; text-align: center; padding: 40px 32px;
+  background: linear-gradient(180deg, rgba(27, 37, 80, .9), rgba(17, 24, 51, .9));
+  border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow);
+}
+.login-card h1 { font-size: 40px; margin: 0 0 8px; letter-spacing: -.02em; }
+.login-card p { color: var(--muted); line-height: 1.5; margin: 0 0 28px; }
+.login-card { display: flex; flex-direction: column; gap: 14px; text-align: left; width: min(400px, 100%); }
+.login-card .badge30, .login-card h1 { align-self: center; }
+.login-card h1 { text-align: center; }
+.login-card p { text-align: center; margin: 0 0 6px; }
+.login-card label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 500; }
+.login-card input {
+  font: inherit; font-size: 16px; color: var(--text); background: var(--bg2);
+  border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px;
+}
+.login-card input:focus { outline: 2px solid var(--blue); outline-offset: -1px; }
+.btn.wide { justify-content: center; padding: 12px; font-size: 16px; margin-top: 6px; }
+.btn:disabled { opacity: .6; cursor: default; }
+.btn:focus-visible, .chip:focus-visible, .member:focus-visible, .art:focus-visible, .stepper button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.member-list { list-style: none; padding: 0; margin: 0 0 4px; display: flex; flex-direction: column; gap: 8px; max-height: 40vh; overflow: auto; }
+.member-list li { display: flex; align-items: center; gap: 10px; }
+.member-list li span:nth-child(2) { flex: 1; min-width: 0; }
+.member-list small { color: var(--muted); }
+.login-error { color: #ff8a7a !important; margin: 18px 0 0 !important; }
+
+/* ------- top bar */
+.topbar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  padding: 12px 24px; background: rgba(11, 16, 32, .82); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.brand h1 { margin: 0; font-size: 22px; letter-spacing: -.01em; }
+.brand p { margin: 0; color: var(--muted); font-size: 13px; }
+.me { display: flex; align-items: center; gap: 8px; }
+
+main { max-width: 1440px; margin: 0 auto; padding: 22px 24px 40px; }
+
+/* ------- avatars */
+.avatar {
+  --c: #64748b; width: 30px; height: 30px; border-radius: 50%; flex: none;
+  display: inline-grid; place-items: center; font-weight: 700; font-size: 13px; color: #fff;
+  background: var(--c); box-shadow: 0 0 0 2px var(--bg); overflow: hidden; position: relative;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar.lg { width: 44px; height: 44px; font-size: 18px; }
+
+/* ------- summary */
+.summary { display: grid; grid-template-columns: 260px 1fr; gap: 16px; margin-bottom: 18px; }
+.summary > *, .member, .member > * { min-width: 0; }
+.group-stat, .member {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px;
+}
+.group-stat {
+  background: linear-gradient(140deg, #2a2205, #1b1a2f 60%); border-color: #5a4a10;
+  display: flex; flex-direction: column; gap: 6px; justify-content: center;
+}
+.group-stat .label { color: var(--gold); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+.group-stat strong { font-size: 32px; letter-spacing: -.02em; }
+.group-stat .sub { color: var(--muted); font-size: 13px; }
+.bar { height: 8px; border-radius: 99px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, var(--gold2), var(--gold)); transition: width .4s; }
+
+.members { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.member {
+  display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center;
+  cursor: pointer; text-align: left; font: inherit; color: inherit; transition: border-color .15s, transform .15s;
+}
+.member:hover { border-color: #3a4785; transform: translateY(-1px); }
+.member.active { border-color: var(--c); box-shadow: 0 0 0 1px var(--c) inset; }
+.member .avatar { grid-row: span 2; }
+.member .name { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; white-space: nowrap; }
+.member .name span { overflow: hidden; text-overflow: ellipsis; }
+.member .name small { color: var(--muted); font-weight: 500; }
+.member .bar i { background: var(--c); }
+.member .stats { grid-column: 1 / -1; color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; }
+
+/* ------- toolbar */
+.toolbar { display: flex; flex-direction: column; gap: 12px; margin-bottom: 8px; }
+.sets { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+.chip {
+  font: inherit; font-size: 14px; font-weight: 600; color: var(--muted); white-space: nowrap;
+  background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; cursor: pointer;
+}
+.chip b { color: var(--text); font-weight: 600; margin-left: 4px; opacity: .7; }
+.chip.on { color: #1a1400; background: var(--gold); border-color: var(--gold); }
+.chip.on b { color: #1a1400; }
+.filters { display: flex; gap: 10px; flex-wrap: wrap; }
+.filters input, .filters select, dialog input, dialog select {
+  font: inherit; font-size: 14px; color: var(--text); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; min-width: 0;
+}
+.filters input { flex: 1 1 260px; }
+.filters input:focus, .filters select:focus, dialog input:focus, dialog select:focus { outline: 2px solid var(--blue); outline-offset: -1px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { font: inherit; font-size: 14px; background: var(--panel); color: var(--muted); border: 0; padding: 9px 14px; cursor: pointer; }
+.seg button.on { background: var(--panel2); color: var(--text); font-weight: 600; }
+.count { color: var(--muted); font-size: 13px; margin: 6px 0 14px; }
+
+/* ------- grid of cards */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 18px; }
+.card {
+  --c: var(--gold);
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 8px 8px 10px; display: flex; flex-direction: column; gap: 8px; position: relative;
+  transition: transform .15s, border-color .15s;
+}
+.card:hover { transform: translateY(-2px); border-color: #3a4785; }
+.card.mine { border-color: var(--c); box-shadow: 0 0 0 1px var(--c) inset, 0 8px 24px rgba(0, 0, 0, .25); }
+.art {
+  aspect-ratio: 63 / 88; border-radius: 9px; overflow: hidden; position: relative; cursor: zoom-in;
+  background: var(--bg2); border: 0; padding: 0; width: 100%; display: block;
+}
+.art img { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; object-fit: cover; display: block; }
+.numtag { z-index: 2; }
+.card:not(.mine) .art img, .card:not(.mine) .ph { filter: grayscale(.85) brightness(.75); }
+.card:not(.mine):hover .art img, .card:not(.mine):hover .ph { filter: none; }
+.ph {
+  position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between;
+  padding: 10px; text-align: left; color: #fff;
+  background: linear-gradient(160deg, var(--r1), var(--r2));
+}
+.ph::after {
+  content: ""; position: absolute; inset: 22% 14%; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, .28), transparent 65%);
+}
+.upload {
+  position: absolute; left: 8px; right: 8px; bottom: 30px; z-index: 2; display: none;
+  font-size: 12px; font-weight: 700; text-align: center; padding: 7px 6px; border-radius: 8px;
+  background: rgba(0, 0, 0, .7); color: var(--gold); border: 1px dashed var(--gold); cursor: pointer;
+}
+.art.noimg .upload { display: block; }
+.art.noimg .ph { filter: none !important; }
+.img-warning {
+  font: inherit; font-size: 14px; font-weight: 600; color: var(--gold); cursor: pointer;
+  background: rgba(255, 203, 5, .08); border: 1px solid rgba(255, 203, 5, .4); border-radius: 10px; padding: 8px 14px; margin-top: 8px;
+}
+dialog fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 10px; margin: 0; }
+dialog legend { font-size: 13px; color: var(--text); padding: 0 6px; }
+.form-error { color: #ff8a7a; font-size: 14px; margin: 0; }
+dialog legend b { color: var(--gold); font-weight: 600; }
+.ph { padding-top: 34px; }
+.ph .no { font-size: 12px; font-weight: 700; opacity: .85; }
+.ph .nm { font-size: 17px; font-weight: 800; line-height: 1.1; text-shadow: 0 2px 8px rgba(0, 0, 0, .35); position: relative; z-index: 1; }
+.ph .rr { font-size: 11px; font-weight: 600; opacity: .9; }
+.numtag {
+  position: absolute; top: 6px; left: 6px; font-size: 11px; font-weight: 700;
+  background: rgba(0, 0, 0, .65); padding: 2px 7px; border-radius: 99px;
+}
+.card .meta { display: flex; flex-direction: column; gap: 2px; padding: 0 2px; min-height: 38px; }
+.card .meta strong { font-size: 14px; line-height: 1.2; }
+.rar { font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
+.rar::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg, var(--r1), var(--r2)); }
+.owners { display: flex; flex-wrap: wrap; gap: 4px; min-height: 26px; padding: 0 2px; }
+.owners .avatar { width: 24px; height: 24px; font-size: 11px; box-shadow: 0 0 0 2px var(--panel); }
+.owners .avatar sup {
+  position: absolute; right: -2px; bottom: -2px; font-size: 9px; background: #000; color: #fff;
+  border-radius: 99px; padding: 0 3px; line-height: 13px;
+}
+.owners .none { font-size: 12px; color: #6b76a8; align-self: center; }
+.stepper { display: flex; align-items: center; justify-content: space-between; background: var(--bg2); border-radius: 10px; padding: 3px; }
+.stepper button {
+  width: 32px; height: 30px; border-radius: 8px; border: 0; cursor: pointer; font: inherit; font-size: 18px; font-weight: 700;
+  background: transparent; color: var(--text);
+}
+.stepper button:hover { background: var(--panel2); }
+.stepper button.add { background: var(--gold); color: #1a1400; }
+.card.mine .stepper button.add { background: transparent; color: var(--text); }
+.card.mine .stepper button.add:hover { background: var(--panel2); }
+.stepper span { font-size: 13px; color: var(--muted); }
+.stepper span b { color: var(--text); font-size: 15px; }
+
+/* rarezas */
+[data-r] { --r1: #4b5563; --r2: #1f2937; }
+[data-r="Poco común"] { --r1: #16a34a; --r2: #14532d; }
+[data-r="Rara"] { --r1: #2563eb; --r2: #1e3a8a; }
+[data-r="Rara doble"] { --r1: #7c3aed; --r2: #3b0764; }
+[data-r="Rara Pikachu"] { --r1: #facc15; --r2: #b45309; }
+[data-r="Rara ilustración"] { --r1: #0ea5e9; --r2: #0f766e; }
+[data-r="Rara ilustración especial"] { --r1: #f472b6; --r2: #9a3412; }
+[data-r="Rara futurista"] { --r1: #22d3ee; --r2: #c026d3; }
+[data-r="Rara RGB"] { --r1: #ef4444; --r2: #2563eb; }
+[data-r="Clásica"] { --r1: #b08d57; --r2: #4a3720; }
+[data-r="Promo"] { --r1: #e3350d; --r2: #4c0519; }
+
+/* ------- tabla */
+.table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); max-height: 75vh; background: var(--panel); }
+table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 14px; }
+th, td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+thead th { position: sticky; top: 0; background: var(--panel2); z-index: 2; font-size: 13px; }
+thead th.u { text-align: center; }
+thead th.u .avatar { width: 26px; height: 26px; font-size: 11px; display: grid; margin: 0 auto 4px; }
+tbody tr:hover td { background: rgba(255, 255, 255, .03); }
+td.n { color: var(--muted); font-variant-numeric: tabular-nums; }
+td.q { text-align: center; font-weight: 700; }
+td.q .dot { display: inline-grid; place-items: center; min-width: 26px; height: 26px; border-radius: 99px; background: var(--c); color: #fff; font-size: 12px; padding: 0 6px; }
+td.q .no { color: #3e4777; }
+td.q.meq { cursor: pointer; }
+td.q.meq:hover { background: rgba(255, 203, 5, .08); }
+tfoot td { position: sticky; bottom: 0; background: var(--panel2); font-weight: 700; text-align: center; }
+
+/* ------- dialogs */
+dialog {
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 18px;
+  box-shadow: var(--shadow); padding: 24px; width: min(480px, calc(100vw - 32px));
+}
+dialog::backdrop { background: rgba(5, 8, 18, .7); backdrop-filter: blur(3px); }
+dialog h2 { margin: 0 0 4px; }
+dialog .hint { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
+dialog form { display: flex; flex-direction: column; gap: 12px; }
+dialog label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 500; }
+dialog .row { display: grid; grid-template-columns: 110px 1fr; gap: 12px; }
+dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; margin: 8px 0 0; }
+.card-dialog { width: min(760px, calc(100vw - 32px)); }
+.cd { display: grid; grid-template-columns: 300px 1fr; gap: 24px; }
+.cd .art { cursor: default; }
+.cd h2 { font-size: 28px; }
+.cd dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; margin: 14px 0; }
+.cd dt { color: var(--muted); }
+.cd dd { margin: 0; }
+.cd .who { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 16px; }
+.cd .who div { display: flex; align-items: center; gap: 10px; }
+.cd .close { position: absolute; top: 12px; right: 12px; }
+
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 50;
+  background: #000; color: #fff; padding: 10px 18px; border-radius: 99px; font-size: 14px; box-shadow: var(--shadow);
+}
+
+footer { text-align: center; color: #6b76a8; font-size: 12px; padding: 0 16px 32px; }
+
+@media (max-width: 860px) {
+  .summary { grid-template-columns: 1fr; }
+  .brand p { display: none; }
+  #btn-sync { display: none; }
+}
+@media (max-width: 600px) {
+  .topbar { padding: 10px 16px; }
+  main { padding: 16px 16px 32px; }
+  .grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .cd { grid-template-columns: 1fr; }
+  .cd .art { max-width: 240px; margin: 0 auto; }
+  #btn-add { padding: 8px 10px; font-size: 0; }
+  #btn-add::before { content: "＋"; font-size: 16px; }
+  .members { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .member { padding: 12px; gap: 6px 10px; }
+  .member .avatar.lg { width: 34px; height: 34px; font-size: 15px; }
+  .member .stats { flex-direction: column; }
+  .filters select { flex: 1 1 140px; }
+}
+
+dialog fieldset .btn { align-self: flex-start; }
+@media (max-width: 600px) {
+  .topbar { gap: 8px; }
+  .brand { gap: 10px; }
+  .brand .badge30 { width: 36px; height: 36px; }
+  .brand h1 { font-size: 18px; white-space: nowrap; }
+  .me { gap: 6px; }
+  .me .btn { padding: 7px 10px; }
+  #btn-members { font-size: 0; }
+  #btn-members::before { content: "👥"; font-size: 16px; }
+}
+.brand, .brand > div { min-width: 0; }
+.brand h1 { overflow: hidden; text-overflow: ellipsis; }
+.me { flex: none; }
+dialog fieldset { min-width: 0; }
+dialog .row > label, dialog input { min-width: 0; }
+
+/* --- versión claude.ai */
+/* Diseño oscuro deliberado (una sola apariencia): fondo y colores explícitos */
+.upload.ro { color: var(--muted); border-color: var(--line); cursor: default; }
+.req { color: var(--gold); font-weight: 600; }
+.notice { background: rgba(255, 203, 5, .08); border: 1px solid rgba(255, 203, 5, .4); color: var(--gold); padding: 10px 14px; border-radius: 10px; margin: 0 0 16px; }
+dialog input[type=file] { padding: 8px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+</style>
+<section id="login" class="login">
+  <form class="login-card" id="form-login" autocomplete="on">
+    <div class="badge30 big"><span>30</span></div>
+    <h1>Pokémon 30</h1>
+    <p>La colección compartida de cartas oficiales en español del <strong>30.º aniversario</strong>.</p>
+    <label>Usuario <input id="login-user" name="username" autocomplete="username" autocapitalize="none" required /></label>
+    <label>Contraseña <input id="login-pass" name="password" type="password" autocomplete="current-password" required /></label>
+    <button class="btn primary wide" id="login-btn" disabled>Conectando…</button>
+    <p id="login-error" class="login-error" hidden></p>
+  </form>
+</section>
+
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="brand">
+      <div class="badge30"><span>30</span></div>
+      <div>
+        <h1>Pokémon 30</h1>
+        <p>Colección compartida · cartas oficiales en español</p>
+      </div>
+    </div>
+    <div class="me">
+      <button class="btn ghost" id="btn-add" title="Dar de alta una carta nueva (promos, productos futuros…)">＋ Añadir carta</button>
+      <button class="btn ghost" id="btn-members" hidden>Miembros</button>
+      <span id="me-avatar"></span>
+      <button class="btn ghost small" id="btn-logout">Salir</button>
+    </div>
+  </header>
+
+  <main>
+    <p class="notice" id="readonly-note" hidden></p>
+    <section class="summary">
+      <div class="group-stat">
+        <span class="label">Entre todos</span>
+        <strong id="group-count">0 / 0</strong>
+        <div class="bar"><i id="group-bar"></i></div>
+        <span class="sub" id="group-sub"></span>
+      </div>
+      <div class="members" id="members"></div>
+    </section>
+
+    <section class="toolbar">
+      <div class="sets" id="sets" role="tablist"></div>
+      <div class="filters">
+        <input type="search" id="q" placeholder="Buscar por nombre, número o ilustrador…" />
+        <select id="f-rarity"><option value="">Todas las rarezas</option></select>
+        <select id="f-owner"></select>
+        <div class="seg" role="group" aria-label="Vista">
+          <button data-view="grid" class="on">Cartas</button>
+          <button data-view="table">Tabla</button>
+        </div>
+      </div>
+    </section>
+
+    <button class="img-warning" id="img-warning" hidden></button>
+    <p class="count" id="result-count"></p>
+    <section id="grid" class="grid"></section>
+    <section id="table-wrap" class="table-wrap" hidden><table id="table"></table></section>
+  </main>
+
+  <footer>Pokémon y sus marcas son © de sus propietarios; app de fans sin afiliación.</footer>
+</div>
+
+<dialog id="dlg-add">
+  <form method="dialog" id="form-add">
+    <h2>Añadir carta</h2>
+    <p class="hint">Para promos o cartas nuevas que aún no aparezcan. Quedará visible para todos.</p>
+    <label>Colección
+      <select name="set" id="add-set"></select>
+    </label>
+    <label id="new-set-row" hidden>Nombre de la nueva colección
+      <input name="new_set" id="add-new-set" placeholder="p.ej. Promos Caja Élite 30.º Aniversario" />
+    </label>
+    <div class="row">
+      <label>Número <input name="number" id="add-number" required placeholder="162" /></label>
+      <label>Nombre <input name="name" id="add-name" required placeholder="Pikachu" /></label>
+    </div>
+    <label>Rareza <input name="rarity" id="add-rarity" list="rarities" placeholder="Promo" /></label>
+    <datalist id="rarities"></datalist>
+    <label>Nota (ilustrador, producto…) <input name="note" id="add-note" /></label>
+    <label>Imagen de la carta <b class="req">(obligatoria)</b>
+      <input name="file" id="add-file" type="file" accept="image/jpeg,image/png,image/webp" />
+    </label>
+    <p class="form-error" id="add-error" hidden></p>
+    <menu>
+      <button value="cancel" class="btn ghost" formnovalidate>Cancelar</button>
+      <button value="ok" class="btn primary">Guardar</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="dlg-members">
+  <form method="dialog" id="form-member">
+    <h2>Miembros</h2>
+    <p class="hint">Crea un usuario para cada persona del grupo. Solo el administrador ve esta pantalla.</p>
+    <ul class="member-list" id="member-list"></ul>
+    <fieldset>
+      <legend>Nuevo usuario</legend>
+      <div class="row">
+        <label>Usuario <input id="m-user" autocapitalize="none" placeholder="lucia" /></label>
+        <label>Nombre <input id="m-name" placeholder="Lucía" /></label>
+      </div>
+      <label>Contraseña <input id="m-pass" placeholder="mínimo 4 caracteres" /></label>
+    </fieldset>
+    <p class="form-error" id="m-error" hidden></p>
+    <menu>
+      <button value="cancel" class="btn ghost" formnovalidate>Cerrar</button>
+      <button value="ok" class="btn primary">Crear usuario</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="dlg-card" class="card-dialog"></dialog>
+<div id="toast" class="toast" hidden></div>
+<input type="file" id="file-pick" accept="image/jpeg,image/png,image/webp" hidden />
+
+<script>
+const CATALOG = {"sets":[{"id":"cel30","name":"Celebración 30.º Aniversario","kind":"expansion","release":"2026-09-16","official":128},{"id":"cel30c","name":"Celebración 30.º Aniversario · Colección Clásica","kind":"subset","release":"2026-09-16","official":30},{"id":"promo30","name":"Promos 30.º Aniversario","kind":"promo","release":null,"official":null}],"cards":[{"id":"cel30-001","set":"cel30","number":"001","sort":1,"name":"Exeggcute","rarity":"Común","note":"Ilus. Nelnal"},{"id":"cel30-002","set":"cel30","number":"002","sort":2,"name":"Exeggutor de Alola","rarity":"Común","note":"Ilus. Oswaldo KATO"},{"id":"cel30-003","set":"cel30","number":"003","sort":3,"name":"Volbeat","rarity":"Común","note":"Ilus. Yoriyuki Ikegami"},{"id":"cel30-004","set":"cel30","number":"004","sort":4,"name":"Illumise","rarity":"Común","note":"Ilus. Shibuzoh."},{"id":"cel30-005","set":"cel30","number":"005","sort":5,"name":"Tropius","rarity":"Común","note":"Ilus. Minahamu"},{"id":"cel30-006","set":"cel30","number":"006","sort":6,"name":"Cherubi","rarity":"Común","note":"Ilus. Kurata So"},{"id":"cel30-007","set":"cel30","number":"007","sort":7,"name":"Cherrim","rarity":"Común","note":"Ilus. takashi shiraishi"},{"id":"cel30-008","set":"cel30","number":"008","sort":8,"name":"Vivillon","rarity":"Común","note":"Ilus. Jerky"},{"id":"cel30-009","set":"cel30","number":"009","sort":9,"name":"Vulpix","rarity":"Común","note":"Ilus. miki kudo"},{"id":"cel30-010","set":"cel30","number":"010","sort":10,"name":"Ninetales","rarity":"Común","note":"Ilus. kodama"},{"id":"cel30-011","set":"cel30","number":"011","sort":11,"name":"Moltres","rarity":"Común","note":"Ilus. HYOGONOSUKE"},{"id":"cel30-012","set":"cel30","number":"012","sort":12,"name":"Ho-Oh","rarity":"Rara","note":"Ilus. Anesaki Dynamic"},{"id":"cel30-013","set":"cel30","number":"013","sort":13,"name":"Victini","rarity":"Común","note":"Ilus. Jiro Sasumo"},{"id":"cel30-014","set":"cel30","number":"014","sort":14,"name":"Reshiram","rarity":"Rara","note":"Ilus. Uta"},{"id":"cel30-015","set":"cel30","number":"015","sort":15,"name":"Fuecoco ex","rarity":"Rara doble","note":"Ilus. 5ban Graphics"},{"id":"cel30-016","set":"cel30","number":"016","sort":16,"name":"Slowpoke","rarity":"Común","note":"Ilus. Uninori"},{"id":"cel30-017","set":"cel30","number":"017","sort":17,"name":"Lapras","rarity":"Común","note":"Ilus. Masa"},{"id":"cel30-018","set":"cel30","number":"018","sort":18,"name":"Articuno","rarity":"Común","note":"Ilus. HYOGONOSUKE"},{"id":"cel30-019","set":"cel30","number":"019","sort":19,"name":"Kyogre","rarity":"Rara","note":"Ilus. Tonji Matsuno"},{"id":"cel30-020","set":"cel30","number":"020","sort":20,"name":"Palkia","rarity":"Rara","note":"Ilus. kawayoo"},{"id":"cel30-021","set":"cel30","number":"021","sort":21,"name":"Greninja ex","rarity":"Rara doble","note":"Ilus. 5ban Graphics"},{"id":"cel30-022","set":"cel30","number":"022","sort":22,"name":"Wishiwashi","rarity":"Común","note":"Ilus. Narano"},{"id":"cel30-023","set":"cel30","number":"023","sort":23,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Ken Sugimori"},{"id":"cel30-024","set":"cel30","number":"024","sort":24,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. danciao"},{"id":"cel30-025","set":"cel30","number":"025","sort":25,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. satoma"},{"id":"cel30-026","set":"cel30","number":"026","sort":26,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Takeshi Nakamura"},{"id":"cel30-027","set":"cel30","number":"027","sort":27,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Asako Ito"},{"id":"cel30-028","set":"cel30","number":"028","sort":28,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. sowsow"},{"id":"cel30-029","set":"cel30","number":"029","sort":29,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. James Turner"},{"id":"cel30-030","set":"cel30","number":"030","sort":30,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. DOM"},{"id":"cel30-031","set":"cel30","number":"031","sort":31,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Atsushi Furusawa"},{"id":"cel30-032","set":"cel30","number":"032","sort":32,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Tomokazu Komiya"},{"id":"cel30-033","set":"cel30","number":"033","sort":33,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Narumi Sato"},{"id":"cel30-034","set":"cel30","number":"034","sort":34,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. USGMEN"},{"id":"cel30-035","set":"cel30","number":"035","sort":35,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Susumu Maeya"},{"id":"cel30-036","set":"cel30","number":"036","sort":36,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. OKACHEKE"},{"id":"cel30-037","set":"cel30","number":"037","sort":37,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Yuu Nishida"},{"id":"cel30-038","set":"cel30","number":"038","sort":38,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Tetsu Kayama"},{"id":"cel30-039","set":"cel30","number":"039","sort":39,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Teeziro"},{"id":"cel30-040","set":"cel30","number":"040","sort":40,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Shinji Kanda"},{"id":"cel30-041","set":"cel30","number":"041","sort":41,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Rianti Hidayat"},{"id":"cel30-042","set":"cel30","number":"042","sort":42,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Akira Komayama"},{"id":"cel30-043","set":"cel30","number":"043","sort":43,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. OOYAMA"},{"id":"cel30-044","set":"cel30","number":"044","sort":44,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. akagi"},{"id":"cel30-045","set":"cel30","number":"045","sort":45,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Naoyo Kimura"},{"id":"cel30-046","set":"cel30","number":"046","sort":46,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. svlt"},{"id":"cel30-047","set":"cel30","number":"047","sort":47,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Atsuko Nishida"},{"id":"cel30-048","set":"cel30","number":"048","sort":48,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. KIYOTAKA OSHIYAMA"},{"id":"cel30-049","set":"cel30","number":"049","sort":49,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Nurikabe"},{"id":"cel30-050","set":"cel30","number":"050","sort":50,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Shimaris Yukichi"},{"id":"cel30-051","set":"cel30","number":"051","sort":51,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. nagimiso"},{"id":"cel30-052","set":"cel30","number":"052","sort":52,"name":"Pikachu","rarity":"Rara Pikachu","note":"Ilus. Kazuki Minami"},{"id":"cel30-053","set":"cel30","number":"053","sort":53,"name":"Pikachu ex","rarity":"Rara doble","note":"Ilus. 5ban Graphics"},{"id":"cel30-054","set":"cel30","number":"054","sort":54,"name":"Pikachu ex","rarity":"Rara doble","note":"Ilus. takuyoa"},{"id":"cel30-055","set":"cel30","number":"055","sort":55,"name":"Zapdos","rarity":"Común","note":"Ilus. HYOGONOSUKE"},{"id":"cel30-056","set":"cel30","number":"056","sort":56,"name":"Zekrom","rarity":"Rara","note":"Ilus. akagi"},{"id":"cel30-057","set":"cel30","number":"057","sort":57,"name":"Zeraora","rarity":"Común","note":"Ilus. Bun Toujo"},{"id":"cel30-058","set":"cel30","number":"058","sort":58,"name":"Toxel","rarity":"Común","note":"Ilus. Shimaris Yukichi"},{"id":"cel30-059","set":"cel30","number":"059","sort":59,"name":"Toxtricity","rarity":"Común","note":"Ilus. Haru Akasaka"},{"id":"cel30-060","set":"cel30","number":"060","sort":60,"name":"Toxtricity","rarity":"Común","note":"Ilus. Yuriko Akase"},{"id":"cel30-061","set":"cel30","number":"061","sort":61,"name":"Morpeko","rarity":"Común","note":"Ilus. Naoki Saito"},{"id":"cel30-062","set":"cel30","number":"062","sort":62,"name":"Miraidon","rarity":"Rara","note":"Ilus. Kazumasa Yasukuni"},{"id":"cel30-063","set":"cel30","number":"063","sort":63,"name":"Mewtwo","rarity":"Rara","note":"Ilus. nagimiso"},{"id":"cel30-064","set":"cel30","number":"064","sort":64,"name":"Mewtwo ex","rarity":"Rara doble","note":"Ilus. 5ban Graphics"},{"id":"cel30-065","set":"cel30","number":"065","sort":65,"name":"Mew","rarity":"Rara","note":"Ilus. danciao"},{"id":"cel30-066","set":"cel30","number":"066","sort":66,"name":"Mew ex","rarity":"Rara doble","note":"Ilus. aky CG Works"},{"id":"cel30-067","set":"cel30","number":"067","sort":67,"name":"Marill","rarity":"Común","note":"Ilus. Saya Tsuruta"},{"id":"cel30-068","set":"cel30","number":"068","sort":68,"name":"Azumarill","rarity":"Común","note":"Ilus. Kagemaru Himeno"},{"id":"cel30-069","set":"cel30","number":"069","sort":69,"name":"Espeon","rarity":"Común","note":"Ilus. aspara"},{"id":"cel30-070","set":"cel30","number":"070","sort":70,"name":"Espeon ex","rarity":"Rara doble","note":"Ilus. 5ban Graphics"},{"id":"cel30-071","set":"cel30","number":"071","sort":71,"name":"Sylveon ex","rarity":"Rara doble","note":"Ilus. 5ban Graphics"},{"id":"cel30-072","set":"cel30","number":"072","sort":72,"name":"Unown","rarity":"Común","note":"Ilus. mingo"},{"id":"cel30-073","set":"cel30","number":"073","sort":73,"name":"Drifloon","rarity":"Común","note":"Ilus. Shinya Komatsu"},{"id":"cel30-074","set":"cel30","number":"074","sort":74,"name":"Cresselia","rarity":"Común","note":"Ilus. KEIICHIRO ITO"},{"id":"cel30-075","set":"cel30","number":"075","sort":75,"name":"Chandelure","rarity":"Común","note":"Ilus. Yoshioka"},{"id":"cel30-076","set":"cel30","number":"076","sort":76,"name":"Xerneas","rarity":"Rara","note":"Ilus. kodama"},{"id":"cel30-077","set":"cel30","number":"077","sort":77,"name":"Comfey","rarity":"Común","note":"Ilus. sui"},{"id":"cel30-078","set":"cel30","number":"078","sort":78,"name":"Cosmog","rarity":"Común","note":"Ilus. Mina Nakai"},{"id":"cel30-079","set":"cel30","number":"079","sort":79,"name":"Cosmoem","rarity":"Común","note":"Ilus. Masako Tomii"},{"id":"cel30-080","set":"cel30","number":"080","sort":80,"name":"Lunala","rarity":"Rara","note":"Ilus. Bun Toujo"},{"id":"cel30-081","set":"cel30","number":"081","sort":81,"name":"Gimmighoul","rarity":"Común","note":"Ilus. Fujimoto Gold"},{"id":"cel30-082","set":"cel30","number":"082","sort":82,"name":"Groudon","rarity":"Rara","note":"Ilus. Takumi Wada"},{"id":"cel30-083","set":"cel30","number":"083","sort":83,"name":"Lucario","rarity":"Común","note":"Ilus. Hideki Ishikawa"},{"id":"cel30-084","set":"cel30","number":"084","sort":84,"name":"Seismitoad","rarity":"Común","note":"Ilus. Kurata So"},{"id":"cel30-085","set":"cel30","number":"085","sort":85,"name":"Lycanroc","rarity":"Común","note":"Ilus. matazo"},{"id":"cel30-086","set":"cel30","number":"086","sort":86,"name":"Koraidon","rarity":"Rara","note":"Ilus. Mitsuhiro Arita"},{"id":"cel30-087","set":"cel30","number":"087","sort":87,"name":"Nidoran♀","rarity":"Común","note":"Ilus. Taira Akitsu"},{"id":"cel30-088","set":"cel30","number":"088","sort":88,"name":"Nidorina","rarity":"Común","note":"Ilus. Miki Tanaka"},{"id":"cel30-089","set":"cel30","number":"089","sort":89,"name":"Meowth de Alola","rarity":"Común","note":"Ilus. Natsumi Yoshida"},{"id":"cel30-090","set":"cel30","number":"090","sort":90,"name":"Gengar ex","rarity":"Rara doble","note":"Ilus. 5ban Graphics"},{"id":"cel30-091","set":"cel30","number":"091","sort":91,"name":"Umbreon","rarity":"Común","note":"Ilus. Iori Suzuki"},{"id":"cel30-092","set":"cel30","number":"092","sort":92,"name":"Umbreon ex","rarity":"Rara doble","note":"Ilus. Keisuke Azuma"},{"id":"cel30-093","set":"cel30","number":"093","sort":93,"name":"Murkrow","rarity":"Común","note":"Ilus. Kouki Saitou"},{"id":"cel30-094","set":"cel30","number":"094","sort":94,"name":"Scraggy","rarity":"Común","note":"Ilus. Souichirou Gunjima"},{"id":"cel30-095","set":"cel30","number":"095","sort":95,"name":"Zorua","rarity":"Común","note":"Ilus. Atsuya Uki"},{"id":"cel30-096","set":"cel30","number":"096","sort":96,"name":"Zoroark","rarity":"Común","note":"Ilus. Shiburingaru"},{"id":"cel30-097","set":"cel30","number":"097","sort":97,"name":"Deino","rarity":"Común","note":"Ilus. Gapao"},{"id":"cel30-098","set":"cel30","number":"098","sort":98,"name":"Zweilous","rarity":"Común","note":"Ilus. IKEDA Saki"},{"id":"cel30-099","set":"cel30","number":"099","sort":99,"name":"Hydreigon","rarity":"Común","note":"Ilus. Ryuta Fuse"},{"id":"cel30-100","set":"cel30","number":"100","sort":100,"name":"Yveltal","rarity":"Rara","note":"Ilus. hncl"},{"id":"cel30-101","set":"cel30","number":"101","sort":101,"name":"Meowth de Galar","rarity":"Común","note":"Ilus. Mékayu"},{"id":"cel30-102","set":"cel30","number":"102","sort":102,"name":"Jirachi ex","rarity":"Rara doble","note":"Ilus. 5ban Graphics"},{"id":"cel30-103","set":"cel30","number":"103","sort":103,"name":"Dialga","rarity":"Rara","note":"Ilus. toriyufu"},{"id":"cel30-104","set":"cel30","number":"104","sort":104,"name":"Ferrothorn","rarity":"Común","note":"Ilus. Po-Suzuki"},{"id":"cel30-105","set":"cel30","number":"105","sort":105,"name":"Solgaleo","rarity":"Rara","note":"Ilus. Nurikabe"},{"id":"cel30-106","set":"cel30","number":"106","sort":106,"name":"Zacian","rarity":"Rara","note":"Ilus. AKIRA EGAWA"},{"id":"cel30-107","set":"cel30","number":"107","sort":107,"name":"Zamazenta","rarity":"Rara","note":"Ilus. Tsuyoshi Nagano"},{"id":"cel30-108","set":"cel30","number":"108","sort":108,"name":"Gholdengo","rarity":"Común","note":"Ilus. Sanosuke Sakuma"},{"id":"cel30-109","set":"cel30","number":"109","sort":109,"name":"Salamence ex","rarity":"Rara doble","note":"Ilus. 5ban Graphics"},{"id":"cel30-110","set":"cel30","number":"110","sort":110,"name":"Jangmo-o","rarity":"Común","note":"Ilus. miki kudo"},{"id":"cel30-111","set":"cel30","number":"111","sort":111,"name":"Hakamo-o","rarity":"Común","note":"Ilus. Jiro Sasumo"},{"id":"cel30-112","set":"cel30","number":"112","sort":112,"name":"Kommo-o","rarity":"Común","note":"Ilus. MARINA Chikazawa"},{"id":"cel30-113","set":"cel30","number":"113","sort":113,"name":"Meowth","rarity":"Común","note":"Ilus. MINAMINAMI Take"},{"id":"cel30-114","set":"cel30","number":"114","sort":114,"name":"Kangaskhan","rarity":"Común","note":"Ilus. Pani Kobayashi"},{"id":"cel30-115","set":"cel30","number":"115","sort":115,"name":"Ditto","rarity":"Común","note":"Ilus. Toshinao Aoki"},{"id":"cel30-116","set":"cel30","number":"116","sort":116,"name":"Eevee","rarity":"Común","note":"Ilus. Wintr Wandr"},{"id":"cel30-117","set":"cel30","number":"117","sort":117,"name":"Eevee","rarity":"Común","note":"Ilus. En Morikura"},{"id":"cel30-118","set":"cel30","number":"118","sort":118,"name":"Eevee","rarity":"Común","note":"Ilus. Hitoshi Ariga"},{"id":"cel30-119","set":"cel30","number":"119","sort":119,"name":"Snorlax","rarity":"Común","note":"Ilus. Aya Kusube"},{"id":"cel30-120","set":"cel30","number":"120","sort":120,"name":"Igglybuff","rarity":"Común","note":"Ilus. Kanami Ogata"},{"id":"cel30-121","set":"cel30","number":"121","sort":121,"name":"Lugia","rarity":"Rara","note":"Ilus. Kazuki Minami"},{"id":"cel30-122","set":"cel30","number":"122","sort":122,"name":"Zorua de Hisui","rarity":"Común","note":"Ilus. Megumi Mizutani"},{"id":"cel30-123","set":"cel30","number":"123","sort":123,"name":"Zoroark de Hisui","rarity":"Común","note":"Ilus. Kamome Shirahama"},{"id":"cel30-124","set":"cel30","number":"124","sort":124,"name":"Minior","rarity":"Común","note":"Ilus. ryoma uratsuka"},{"id":"cel30-125","set":"cel30","number":"125","sort":125,"name":"Maushold","rarity":"Común","note":"Ilus. Kariya"},{"id":"cel30-126","set":"cel30","number":"126","sort":126,"name":"Pokétableta","rarity":"Común","note":"Ilus. Yuka Morii"},{"id":"cel30-127","set":"cel30","number":"127","sort":127,"name":"Cambio","rarity":"Común","note":"Ilus. Yuka Morii"},{"id":"cel30-128","set":"cel30","number":"128","sort":128,"name":"Ultra Ball","rarity":"Común","note":"Ilus. Yuka Morii"},{"id":"cel30-129","set":"cel30","number":"129","sort":129,"name":"Exeggutor de Alola","rarity":"Rara ilustración","note":"Ilus. AYUMI ODASHIMA"},{"id":"cel30-130","set":"cel30","number":"130","sort":130,"name":"Moltres","rarity":"Rara ilustración","note":"Ilus. mashu"},{"id":"cel30-131","set":"cel30","number":"131","sort":131,"name":"Lapras","rarity":"Rara ilustración","note":"Ilus. Amelicart"},{"id":"cel30-132","set":"cel30","number":"132","sort":132,"name":"Articuno","rarity":"Rara ilustración","note":"Ilus. mashu"},{"id":"cel30-133","set":"cel30","number":"133","sort":133,"name":"Zapdos","rarity":"Rara ilustración","note":"Ilus. mashu"},{"id":"cel30-134","set":"cel30","number":"134","sort":134,"name":"Toxtricity","rarity":"Rara ilustración","note":"Ilus. Kazumasa Yasukuni"},{"id":"cel30-135","set":"cel30","number":"135","sort":135,"name":"Morpeko","rarity":"Rara ilustración","note":"Ilus. Yoshimi Miyoshi"},{"id":"cel30-136","set":"cel30","number":"136","sort":136,"name":"Drifloon","rarity":"Rara ilustración","note":"Ilus. Whisker"},{"id":"cel30-137","set":"cel30","number":"137","sort":137,"name":"Chandelure","rarity":"Rara ilustración","note":"Ilus. YASHIRO Nanaco"},{"id":"cel30-138","set":"cel30","number":"138","sort":138,"name":"Lycanroc","rarity":"Rara ilustración","note":"Ilus. Raita Kazama"},{"id":"cel30-139","set":"cel30","number":"139","sort":139,"name":"Meowth de Alola","rarity":"Rara ilustración","note":"Ilus. OKUBO"},{"id":"cel30-140","set":"cel30","number":"140","sort":140,"name":"Scraggy","rarity":"Rara ilustración","note":"Ilus. GOSSAN"},{"id":"cel30-141","set":"cel30","number":"141","sort":141,"name":"Meowth de Galar","rarity":"Rara ilustración","note":"Ilus. OKUBO"},{"id":"cel30-142","set":"cel30","number":"142","sort":142,"name":"Gholdengo","rarity":"Rara ilustración","note":"Ilus. toriyufu"},{"id":"cel30-143","set":"cel30","number":"143","sort":143,"name":"Kommo-o","rarity":"Rara ilustración","note":"Ilus. Gemi"},{"id":"cel30-144","set":"cel30","number":"144","sort":144,"name":"Meowth","rarity":"Rara ilustración","note":"Ilus. OKUBO"},{"id":"cel30-145","set":"cel30","number":"145","sort":145,"name":"Zorua de Hisui","rarity":"Rara ilustración","note":"Ilus. 0313"},{"id":"cel30-146","set":"cel30","number":"146","sort":146,"name":"Maushold","rarity":"Rara ilustración","note":"Ilus. osare"},{"id":"cel30-147","set":"cel30","number":"147","sort":147,"name":"Fuecoco ex","rarity":"Rara ilustración especial","note":"Ilus. Atsushi Furusawa"},{"id":"cel30-148","set":"cel30","number":"148","sort":148,"name":"Greninja ex","rarity":"Rara ilustración especial","note":"Ilus. GIDORA"},{"id":"cel30-149","set":"cel30","number":"149","sort":149,"name":"Pikachu ex","rarity":"Rara ilustración especial","note":"Ilus. kantaro"},{"id":"cel30-150","set":"cel30","number":"150","sort":150,"name":"Pikachu ex","rarity":"Rara ilustración especial","note":"Ilus. kantaro"},{"id":"cel30-151","set":"cel30","number":"151","sort":151,"name":"Mewtwo ex","rarity":"Rara ilustración especial","note":"Ilus. Yano Keiji"},{"id":"cel30-152","set":"cel30","number":"152","sort":152,"name":"Mew ex","rarity":"Rara ilustración especial","note":"Ilus. Kuroimori"},{"id":"cel30-153","set":"cel30","number":"153","sort":153,"name":"Sylveon ex","rarity":"Rara ilustración especial","note":"Ilus. You Iribi"},{"id":"cel30-154","set":"cel30","number":"154","sort":154,"name":"Gengar ex","rarity":"Rara ilustración especial","note":"Ilus. CHORISO"},{"id":"cel30-155","set":"cel30","number":"155","sort":155,"name":"Jirachi ex","rarity":"Rara ilustración especial","note":"Ilus. AKIRA EGAWA"},{"id":"cel30-156","set":"cel30","number":"156","sort":156,"name":"Salamence ex","rarity":"Rara ilustración especial","note":"Ilus. Ryota Murayama"},{"id":"cel30-157","set":"cel30","number":"157","sort":157,"name":"Mewtwo ex","rarity":"Rara futurista","note":"Ilus. YOSHIROTTEN"},{"id":"cel30-158","set":"cel30","number":"158","sort":158,"name":"Mew ex","rarity":"Rara futurista","note":"Ilus. YOSHIROTTEN"},{"id":"cel30-R/RGB","set":"cel30","number":"R/RGB","sort":200,"name":"Mew (R/RGB)","rarity":"Rara RGB","note":"Ilus. YOSHIROTTEN"},{"id":"cel30-G/RGB","set":"cel30","number":"G/RGB","sort":201,"name":"Mew (G/RGB)","rarity":"Rara RGB","note":"Ilus. YOSHIROTTEN"},{"id":"cel30-B/RGB","set":"cel30","number":"B/RGB","sort":202,"name":"Mew (B/RGB)","rarity":"Rara RGB","note":"Ilus. YOSHIROTTEN"},{"id":"cel30c-001","set":"cel30c","number":"001","sort":1,"name":"Charizard","rarity":"Clásica","note":"Ilus. Mitsuhiro Arita · Original: Base Set 4/102"},{"id":"cel30c-002","set":"cel30c","number":"002","sort":2,"name":"Delcatty","rarity":"Clásica","note":"Ilus. Atsuko Nishida · Original: EX Rubí y Zafiro 5"},{"id":"cel30c-003","set":"cel30c","number":"003","sort":3,"name":"Metagross δ","rarity":"Clásica","note":"Ilus. Masakazu Fukuda · Original: EX Especies Delta (Metagross δ) 11"},{"id":"cel30c-004","set":"cel30c","number":"004","sort":4,"name":"Genesect EX","rarity":"Clásica","note":"Ilus. Eske Yoshinob · Original: Plasma Blast 11/101"},{"id":"cel30c-005","set":"cel30c","number":"005","sort":5,"name":"Misty","rarity":"Clásica","note":"Ilus. Ken Sugimori · Original: Gym Heroes 18/132"},{"id":"cel30c-006","set":"cel30c","number":"006","sort":6,"name":"Tyranitar Oscuro","rarity":"Clásica","note":"Ilus. Nakaoka · Original: EX Team Rocket Returns 19"},{"id":"cel30c-007","set":"cel30c","number":"007","sort":7,"name":"Sneasel","rarity":"Clásica","note":"Ilus. Ken Sugimori · Original: Neo Genesis 25"},{"id":"cel30c-008","set":"cel30c","number":"008","sort":8,"name":"Pikachu y Zekrom GX","rarity":"Clásica","note":"Ilus. Mitsuhiro Arita · Original: Team Up 33/181"},{"id":"cel30c-009","set":"cel30c","number":"009","sort":9,"name":"Greninja TURBO","rarity":"Clásica","note":"Ilus. 5ban Graphics · Original: BREAKpoint 41/122"},{"id":"cel30c-010","set":"cel30c","number":"010","sort":10,"name":"Uxie","rarity":"Clásica","note":"Ilus. Ken Sugimori · Original: Legends Awakened 43"},{"id":"cel30c-011","set":"cel30c","number":"011","sort":11,"name":"Crobat G","rarity":"Clásica","note":"Ilus. Makoto Imai · Original: Platinum 47"},{"id":"cel30c-012","set":"cel30c","number":"012","sort":12,"name":"Raikou","rarity":"Clásica","note":"Ilus. Hideki Ishikawa · Original: Vivid Voltage 50"},{"id":"cel30c-013","set":"cel30c","number":"013","sort":13,"name":"Buzzwole GX","rarity":"Clásica","note":"Ilus. 5ban Graphics · Original: Crimson Invasion 57/111"},{"id":"cel30c-014","set":"cel30c","number":"014","sort":14,"name":"Pikachu","rarity":"Clásica","note":"Ilus. Mitsuhiro Arita · Original: Base Set 58/102"},{"id":"cel30c-015","set":"cel30c","number":"015","sort":15,"name":"Jigglypuff de Erika","rarity":"Clásica","note":"Ilus. Ken Sugimori · Original: Gym Heroes 69/132"},{"id":"cel30c-016","set":"cel30c","number":"016","sort":16,"name":"Rayquaza EX","rarity":"Clásica","note":"Ilus. Eske Yoshinob · Original: Dragons Exalted 85/124"},{"id":"cel30c-017","set":"cel30c","number":"017","sort":17,"name":"Solgaleo GX","rarity":"Clásica","note":"Ilus. PLANETA · Original: Sun & Moon 89/149"},{"id":"cel30c-018","set":"cel30c","number":"018","sort":18,"name":"Gengar Prime","rarity":"Clásica","note":"Ilus. Takashi Yamaguchi · Original: HS Triumphant (Gengar Prime) 94/102"},{"id":"cel30c-019","set":"cel30c","number":"019","sort":19,"name":"Darkrai & Cresselia LEYENDA (parte superior)","rarity":"Clásica","note":"Ilus. Shinji Higuchi + Noriko Takaya 樋口 真嗣 + 高屋 法子"},{"id":"cel30c-020","set":"cel30c","number":"020","sort":20,"name":"Darkrai & Cresselia LEYENDA (parte inferior)","rarity":"Clásica","note":"Ilus. Shinji Higuchi"},{"id":"cel30c-021","set":"cel30c","number":"021","sort":21,"name":"N","rarity":"Clásica","note":"Ilus. Ken Sugimori · Original: Noble Victories 101"},{"id":"cel30c-022","set":"cel30c","number":"022","sort":22,"name":"Palkia NV.X","rarity":"Clásica","note":"Ilus. Ryo Ueda · Original: Great Encounters (Palkia LV.X) 106"},{"id":"cel30c-023","set":"cel30c","number":"023","sort":23,"name":"M Gardevoir EX","rarity":"Clásica","note":"Ilus. 5ban Graphics · Original: Primal Clash 106/160"},{"id":"cel30c-024","set":"cel30c","number":"024","sort":24,"name":"Celebi Luminoso","rarity":"Clásica","note":"Ilus. Hironobu Yoshida · Original: Neo Destiny 106/105"},{"id":"cel30c-025","set":"cel30c","number":"025","sort":25,"name":"Scizor ex","rarity":"Clásica","note":"Ilus. Mitsuhiro Arita · Original: EX Unseen Forces 108"},{"id":"cel30c-026","set":"cel30c","number":"026","sort":26,"name":"Mew VMAX","rarity":"Clásica","note":"Ilus. 5ban Graphics · Original: Fusion Strike 114"},{"id":"cel30c-027","set":"cel30c","number":"027","sort":27,"name":"Arceus V-ASTRO","rarity":"Clásica","note":"Ilus. 5ban Graphics · Original: Brilliant Stars 123"},{"id":"cel30c-028","set":"cel30c","number":"028","sort":28,"name":"Zacian V","rarity":"Clásica","note":"Ilus. 5ban Graphics · Original: Sword & Shield 138"},{"id":"cel30c-029","set":"cel30c","number":"029","sort":29,"name":"Lugia (Cristal)","rarity":"Clásica","note":"Ilus. Naoyo Kimura · Original: Aquapolis (Crystal Lugia) 149/147"},{"id":"cel30c-030","set":"cel30c","number":"030","sort":30,"name":"Magikarp","rarity":"Clásica","note":"Ilus. Shinji Kanda · Original: Paldea Evolved 203"},{"id":"promo30-MEP 094","set":"promo30","number":"MEP 094","sort":94,"name":"Exeggutor de Alola","rarity":"Promo","note":"Ilus. yuu · Colección con Pegatinas (Tech Sticker Collection) – Exeggutor de Alola"},{"id":"promo30-MEP 095","set":"promo30","number":"MEP 095","sort":95,"name":"Lucario","rarity":"Promo","note":"Ilus. Taiga Kasai · Colección con Pegatinas (Tech Sticker Collection) – Lucario"},{"id":"promo30-MEP 096","set":"promo30","number":"MEP 096","sort":96,"name":"Moltres","rarity":"Promo","note":"Ilus. Krgc · Colección con Póster"},{"id":"promo30-MEP 097","set":"promo30","number":"MEP 097","sort":97,"name":"Articuno","rarity":"Promo","note":"Ilus. Taira Akitsu · Colección con Póster"},{"id":"promo30-MEP 098","set":"promo30","number":"MEP 098","sort":98,"name":"Zapdos","rarity":"Promo","note":"Ilus. SIE NANAHARA · Colección con Póster"},{"id":"promo30-MEP 099","set":"promo30","number":"MEP 099","sort":99,"name":"Greninja ex","rarity":"Promo","note":"Ilus. 5ban Graphics · Caja Greninja ex (Pokémon ex Box)"},{"id":"promo30-MEP 100","set":"promo30","number":"MEP 100","sort":100,"name":"Sylveon ex","rarity":"Promo","note":"Ilus. 5ban Graphics · Caja Sylveon ex (Pokémon ex Box)"},{"id":"promo30-MEP 101","set":"promo30","number":"MEP 101","sort":101,"name":"Nidorina","rarity":"Promo","note":"Ilus. Taiga Kasai · Caja de Entrenador Élite (ETB) 30.º Aniversario"},{"id":"promo30-MEP 102","set":"promo30","number":"MEP 102","sort":102,"name":"Victini","rarity":"Promo","note":"Ilus. satoma · Baraja de Combate (Battle Deck) 30.º Aniversario"},{"id":"promo30-MEP 103","set":"promo30","number":"MEP 103","sort":103,"name":"Zeraora","rarity":"Promo","note":"Ilus. HACCAN · Baraja de Combate Umbreon ex (Battle Deck)"},{"id":"promo30-MEP 104","set":"promo30","number":"MEP 104","sort":104,"name":"Mewtwo","rarity":"Promo","note":"Ilus. Nisota Niso · Colección con Figura Mewtwo"},{"id":"promo30-MEP 105","set":"promo30","number":"MEP 105","sort":105,"name":"Mew","rarity":"Promo","note":"Ilus. Cona Nitanda · Colección con Figura Mew"},{"id":"promo30-MEP 106","set":"promo30","number":"MEP 106","sort":106,"name":"Ditto","rarity":"Promo","note":"Ilus. Ounishi · Colección Premium Ditto"},{"id":"promo30-MEP 107","set":"promo30","number":"MEP 107","sort":107,"name":"Pikachu ex","rarity":"Promo","note":"Ilus. YOSHIROTTEN · Colección Ultra-Premium Día (Espeon ex) – YOSHIROTTEN"},{"id":"promo30-MEP 108","set":"promo30","number":"MEP 108","sort":108,"name":"Espeon ex","rarity":"Promo","note":"Ilus. REND · Colección Ultra-Premium Día (Espeon ex) – REND"},{"id":"promo30-MEP 109","set":"promo30","number":"MEP 109","sort":109,"name":"Pikachu ex","rarity":"Promo","note":"Ilus. YOSHIROTTEN · Colección Ultra-Premium Noche (Umbreon ex) – YOSHIROTTEN"},{"id":"promo30-MEP 110","set":"promo30","number":"MEP 110","sort":110,"name":"Umbreon ex","rarity":"Promo","note":"Ilus. REND · Colección Ultra-Premium Noche (Umbreon ex) – REND"},{"id":"promo30-051/162","set":"promo30","number":"051/162","sort":51,"name":"Pikachu (sello Día de Pokémon 2026)","rarity":"Promo","note":"Ilus. kodama · Colección Día de Pokémon 2026 (reimpresión de Fuerzas Temporales 051/162, holo cosmos con sello)"}]};
+
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#a855f7", "#f97316", "#14b8a6", "#ec4899", "#64748b", "#84cc16"];
+const RARITY_ORDER = ["Común", "Poco común", "Rara", "Rara doble", "Rara Pikachu", "Rara ilustración", "Rara ilustración especial", "Rara futurista", "Rara RGB", "Clásica", "Promo"];
+
+// Los ids de documento solo admiten letras, dígitos y _ - . ~ : @ +
+const keyOf = (id) => id.replace(/[^A-Za-z0-9_.~:@+-]/g, "_");
+
+const state = {
+  me: null, // username
+  accounts: new Map(), // username -> {name, pass, color, admin}
+  owned: new Map(), // username -> {cardKey: qty}
+  images: new Map(), // cardKey -> assetId
+  extras: [], // cartas añadidas por el grupo
+  extraSets: [],
+  view: lsGet("view") || "grid",
+  set: lsGet("set") || "all",
+  q: "",
+  rarity: "",
+  owner: "all",
+  canWrite: true,
+};
+let db = null;
+let assets = null;
+
+function lsGet(k) { try { return localStorage.getItem(`p30:${k}`); } catch { return null; } }
+function lsSet(k, v) { try { v === null ? localStorage.removeItem(`p30:${k}`) : localStorage.setItem(`p30:${k}`, v); } catch {} }
+
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => (t.hidden = true), 2800);
+}
+
+async function hashPass(user, pass) {
+  const data = new TextEncoder().encode(`pokemon30:${user}:${pass}`);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// ------------------------------------------------------------- datos
+
+const allSets = () => CATALOG.sets.concat(state.extraSets.filter((s) => !CATALOG.sets.some((c) => c.id === s.id)));
+const allCards = () => CATALOG.cards.concat(state.extras);
+const users = () =>
+  [...state.accounts.entries()]
+    .map(([id, a]) => ({ id, ...a }))
+    .sort((a, b) => (b.admin ? 1 : 0) - (a.admin ? 1 : 0) || (a.created || 0) - (b.created || 0));
+
+function qty(card, userId) {
+  return state.owned.get(userId)?.[keyOf(card.id)] || 0;
+}
+function owners(card) {
+  return users().filter((u) => qty(card, u.id) > 0);
+}
+function imageId(card) {
+  return state.images.get(keyOf(card.id)) || card.asset || null;
+}
+
+async function connect() {
+  try {
+    db = await claude.use("db");
+  } catch {
+    db = null;
+  }
+  if (!db) {
+    $("#login-btn").textContent = "No disponible";
+    showLoginError("Abre esta página en claude.ai con tu cuenta iniciada para poder entrar.");
+    return;
+  }
+  claude.use("assets").then((a) => { assets = a; if (state.me) render(); }).catch(() => {});
+
+  let first = true;
+  db.collection("accounts").onSnapshot((snap) => {
+    state.accounts = new Map(snap.docs.map((d) => [d.id, d.data()]));
+    if (first) {
+      first = false;
+      $("#login-btn").disabled = false;
+      $("#login-btn").textContent = "Entrar";
+      const saved = lsGet("user");
+      if (saved && state.accounts.has(saved)) enter(saved);
+    }
+    if (state.me && !state.accounts.has(state.me)) logout();
+    if (state.me) render();
+  }, dbError);
+  db.collection("owned").onSnapshot((snap) => {
+    for (const d of snap.docs) {
+      // Mientras tengo cambios sin guardar, mi propia colección manda en local
+      if (d.id === state.me && dirty) continue;
+      state.owned.set(d.id, { ...(d.data().cards || {}) });
+    }
+    if (state.me) render();
+  }, dbError);
+  db.collection("images").onSnapshot((snap) => {
+    state.images = new Map(snap.docs.map((d) => [d.id, d.data().asset]));
+    if (state.me) render();
+  }, dbError);
+  db.collection("extra").onSnapshot((snap) => {
+    state.extras = snap.docs.map((d) => d.data()).filter((c) => c.type !== "set");
+    state.extraSets = snap.docs.map((d) => d.data()).filter((c) => c.type === "set");
+    if (state.me) render();
+  }, dbError);
+}
+
+function dbError(e) {
+  console.warn("db", e);
+  if (e?.code === "revoked") toast("Se ha perdido el acceso a los datos. Recarga la página.");
+}
+
+// Guardado de mi colección: una escritura cada vez, agrupando clics seguidos
+let dirty = false;
+let saving = Promise.resolve();
+let saveTimer = null;
+function scheduleSave() {
+  dirty = true;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSave, 600);
+}
+function flushSave() {
+  saveTimer = null;
+  const me = state.me;
+  const cards = { ...(state.owned.get(me) || {}) };
+  saving = saving
+    .then(() => db.doc(`owned/${me}`).set({ cards, at: Date.now() }))
+    .catch((e) => {
+      if (e?.code === "invalid_argument") {
+        state.canWrite = false;
+        render();
+        toast("Tu acceso a esta página es de solo lectura: no se pueden guardar cambios.");
+      } else toast("No se pudo guardar. Revisa la conexión.");
+    })
+    .finally(() => { if (!saveTimer) dirty = false; });
+}
+
+// ------------------------------------------------------------- login
+
+function showLoginError(msg) {
+  $("#login-error").textContent = msg;
+  $("#login-error").hidden = false;
+}
+
+async function login(e) {
+  e.preventDefault();
+  const user = $("#login-user").value.trim().toLowerCase();
+  const pass = $("#login-pass").value;
+  const acc = state.accounts.get(user);
+  if (!acc || acc.pass !== (await hashPass(user, pass))) {
+    showLoginError("Usuario o contraseña incorrectos.");
+    return;
+  }
+  $("#login-error").hidden = true;
+  $("#login-pass").value = "";
+  lsSet("user", user);
+  enter(user);
+}
+
+function enter(user) {
+  state.me = user;
+  $("#login").hidden = true;
+  $("#app").hidden = false;
+  render();
+}
+
+function logout() {
+  lsSet("user", null);
+  state.me = null;
+  $("#app").hidden = true;
+  $("#login").hidden = false;
+}
+
+// ------------------------------------------------------------- render
+
+function avatar(u, cls = "") {
+  return `<span class="avatar ${cls}" style="--c:${esc(u.color)}" title="${esc(u.name)}">${esc((u.name || "?").trim().charAt(0).toUpperCase())}</span>`;
+}
+
+function setById(id) {
+  return allSets().find((s) => s.id === id);
+}
+
+function displayNumber(c) {
+  const set = setById(c.set);
+  if (/^\d+$/.test(c.number) && set?.official && set.kind === "expansion") return `${c.number}/${String(set.official).padStart(3, "0")}`;
+  return c.number;
+}
+
+function cardsInScope() {
+  return state.set === "all" ? allCards() : allCards().filter((c) => c.set === state.set);
+}
+
+function filtered() {
+  const q = state.q.trim().toLowerCase();
+  const me = state.me;
+  return cardsInScope()
+    .filter((c) => {
+      if (state.rarity && c.rarity !== state.rarity) return false;
+      if (q && !`${c.name} ${c.number} ${c.note || ""} ${c.rarity || ""}`.toLowerCase().includes(q)) return false;
+      const mine = qty(c, me);
+      const n = owners(c).length;
+      switch (state.owner) {
+        case "missing": return !mine;
+        case "have": return mine > 0;
+        case "dupes": return mine > 1;
+        case "nobody": return n === 0;
+        case "trade": return !mine && n > 0;
+        case "noimage": return !imageId(c);
+        default:
+          if (state.owner.startsWith("has:")) return qty(c, state.owner.slice(4)) > 0;
+          if (state.owner.startsWith("lacks:")) return !qty(c, state.owner.slice(6));
+          return true;
+      }
+    });
+}
+
+function render() {
+  const me = state.accounts.get(state.me);
+  if (!me) return;
+  $("#me-avatar").innerHTML = avatar({ ...me, id: state.me });
+  $("#btn-members").hidden = !me.admin;
+  $("#btn-add").hidden = !assets || !state.canWrite;
+  $("#readonly-note").hidden = state.canWrite;
+  $("#readonly-note").textContent = "Solo lectura: tu acceso a esta página no permite guardar cambios.";
+  renderSummary();
+  renderSets();
+  renderFilters();
+  const n = allCards().filter((c) => !imageId(c)).length;
+  $("#img-warning").hidden = n === 0;
+  $("#img-warning").textContent = assets
+    ? `${n} carta${n === 1 ? "" : "s"} sin imagen · toca para verlas y subir la foto`
+    : `${n} carta${n === 1 ? "" : "s"} sin imagen`;
+  const list = filtered();
+  $("#result-count").textContent = `${list.length} carta${list.length === 1 ? "" : "s"}`;
+  $("#grid").hidden = state.view !== "grid";
+  $("#table-wrap").hidden = state.view !== "table";
+  document.querySelectorAll(".seg button").forEach((b) => b.classList.toggle("on", b.dataset.view === state.view));
+  if (state.view === "grid") renderGrid(list);
+  else renderTable(list);
+  if ($("#dlg-card").open) openCard($("#dlg-card").dataset.id, true);
+}
+
+function renderSummary() {
+  const scope = cardsInScope();
+  const total = scope.length;
+  const anyone = scope.filter((c) => owners(c).length).length;
+  const us = users();
+  $("#group-count").textContent = `${anyone} / ${total}`;
+  $("#group-bar").style.width = total ? `${(anyone / total) * 100}%` : "0";
+  $("#group-sub").textContent = `${total ? Math.round((anyone / total) * 100) : 0}% conseguido por al menos uno · ${us.length} coleccionista${us.length === 1 ? "" : "s"}`;
+  $("#members").innerHTML = us
+    .map((u) => {
+      let have = 0;
+      let copies = 0;
+      for (const c of scope) {
+        const n = qty(c, u.id);
+        if (n) { have++; copies += n; }
+      }
+      const pct = total ? Math.round((have / total) * 100) : 0;
+      const active = state.owner === `has:${u.id}` || state.owner === `lacks:${u.id}`;
+      return `<button class="member ${active ? "active" : ""}" data-user="${esc(u.id)}" style="--c:${esc(u.color)}">
+        ${avatar(u, "lg")}
+        <div class="name"><span>${esc(u.name)}${u.id === state.me ? " (tú)" : ""}</span><small>${pct}%</small></div>
+        <div class="bar"><i style="width:${pct}%"></i></div>
+        <div class="stats"><span>${have} / ${total} distintas</span><span>${copies - have > 0 ? `${copies - have} repe${copies - have === 1 ? "" : "s"}` : ""}</span></div>
+      </button>`;
+    })
+    .join("");
+}
+
+function renderSets() {
+  const cards = allCards();
+  const chips = [{ id: "all", name: "Todas", n: cards.length }].concat(
+    allSets().map((s) => ({ id: s.id, name: s.name, n: cards.filter((c) => c.set === s.id).length })),
+  );
+  if (!chips.some((c) => c.id === state.set)) state.set = "all";
+  $("#sets").innerHTML = chips
+    .map((s) => `<button class="chip ${state.set === s.id ? "on" : ""}" data-set="${esc(s.id)}" role="tab">${esc(s.name)}<b>${s.n}</b></button>`)
+    .join("");
+}
+
+function renderFilters() {
+  const rarities = [...new Set(cardsInScope().map((c) => c.rarity).filter(Boolean))].sort(
+    (a, b) => ((RARITY_ORDER.indexOf(a) + 99) % 99) - ((RARITY_ORDER.indexOf(b) + 99) % 99),
+  );
+  if (state.rarity && !rarities.includes(state.rarity)) state.rarity = "";
+  $("#f-rarity").innerHTML = `<option value="">Todas las rarezas</option>` + rarities.map((r) => `<option ${r === state.rarity ? "selected" : ""}>${esc(r)}</option>`).join("");
+  const opts = [
+    ["all", "Todas las cartas"],
+    ["missing", "Me faltan"],
+    ["have", "Las tengo"],
+    ["dupes", "Mis repetidas"],
+    ["trade", "Las tiene alguien y yo no"],
+    ["nobody", "No las tiene nadie"],
+    ["noimage", "Sin imagen"],
+  ];
+  for (const u of users()) {
+    if (u.id === state.me) continue;
+    opts.push([`has:${u.id}`, `Las tiene ${u.name}`], [`lacks:${u.id}`, `Le faltan a ${u.name}`]);
+  }
+  $("#f-owner").innerHTML = opts.map(([v, l]) => `<option value="${esc(v)}" ${v === state.owner ? "selected" : ""}>${esc(l)}</option>`).join("");
+}
+
+function artHtml(c) {
+  const id = imageId(c);
+  const ph = `<div class="ph" data-r="${esc(c.rarity)}"><span class="nm">${esc(c.name)}</span><span class="rr">${esc(c.rarity || "")}</span></div>`;
+  const up = assets && state.canWrite ? `<span class="upload" data-upload="${esc(c.id)}" role="button" tabindex="0">📷 Falta la imagen · Subir</span>` : `<span class="upload ro">Sin imagen</span>`;
+  if (!id) return ph + up;
+  return `${ph}<img src="/_blob/${esc(id)}" alt="${esc(c.name)}" loading="lazy" onerror="this.parentNode.classList.add('noimg');this.remove()">${up}`;
+}
+
+function ownersHtml(c) {
+  const os = owners(c);
+  if (!os.length) return `<span class="none">Nadie la tiene aún</span>`;
+  return os
+    .map((u) => {
+      const n = qty(c, u.id);
+      return `<span class="avatar" style="--c:${esc(u.color)}" title="${esc(u.name)}: ${n}">${esc(u.name.charAt(0).toUpperCase())}${n > 1 ? `<sup>×${n}</sup>` : ""}</span>`;
+    })
+    .join("");
+}
+
+function renderGrid(list) {
+  const me = state.accounts.get(state.me);
+  $("#grid").innerHTML = list
+    .map((c) => {
+      const mine = qty(c, state.me);
+      const ro = !state.canWrite;
+      return `<article class="card ${mine ? "mine" : ""}" style="--c:${esc(me.color)}">
+        <button class="art ${imageId(c) ? "" : "noimg"}" data-open="${esc(c.id)}" aria-label="Ver ${esc(c.name)}">${artHtml(c)}<span class="numtag">${esc(displayNumber(c))}</span></button>
+        <div class="meta"><strong>${esc(c.name)}</strong><span class="rar" data-r="${esc(c.rarity)}">${esc(c.rarity || "—")}</span></div>
+        <div class="owners">${ownersHtml(c)}</div>
+        <div class="stepper">
+          <button data-dec="${esc(c.id)}" aria-label="Quitar una" ${mine && !ro ? "" : "disabled style=visibility:hidden"}>−</button>
+          <span>${mine ? `Tengo <b>${mine}</b>` : "No la tengo"}</span>
+          <button class="add" data-inc="${esc(c.id)}" aria-label="Añadir una" ${ro ? "disabled style=visibility:hidden" : ""}>+</button>
+        </div>
+      </article>`;
+    })
+    .join("");
+}
+
+function renderTable(list) {
+  const us = users();
+  const head = `<thead><tr><th>Nº</th><th>Carta</th><th>Rareza</th>${us.map((u) => `<th class="u">${avatar(u)}${esc(u.name.split(" ")[0])}</th>`).join("")}</tr></thead>`;
+  const body = list
+    .map((c) => {
+      const cells = us
+        .map((u) => {
+          const n = qty(c, u.id);
+          const isMe = u.id === state.me && state.canWrite;
+          return `<td class="q ${isMe ? "meq" : ""}" ${isMe ? `data-toggle="${esc(c.id)}"` : ""}>${n ? `<span class="dot" style="--c:${esc(u.color)}">${n > 1 ? n : "✓"}</span>` : `<span class="no">·</span>`}</td>`;
+        })
+        .join("");
+      return `<tr><td class="n">${esc(displayNumber(c))}</td><td><a href="#" data-open="${esc(c.id)}">${esc(c.name)}</a></td><td><span class="rar" data-r="${esc(c.rarity)}">${esc(c.rarity || "—")}</span></td>${cells}</tr>`;
+    })
+    .join("");
+  const foot = `<tfoot><tr><td colspan="3" style="text-align:left">Total en esta vista</td>${us.map((u) => `<td>${list.filter((c) => qty(c, u.id)).length}</td>`).join("")}</tr></tfoot>`;
+  $("#table").innerHTML = head + `<tbody>${body}</tbody>` + foot;
+}
+
+function openCard(id, refresh = false) {
+  const c = allCards().find((x) => x.id === id);
+  const dlg = $("#dlg-card");
+  if (!c) { if (dlg.open) dlg.close(); return; }
+  const set = setById(c.set);
+  const os = owners(c);
+  dlg.dataset.id = id;
+  dlg.innerHTML = `<button class="btn ghost small close" data-close>✕</button>
+    <div class="cd">
+      <div class="art ${imageId(c) ? "" : "noimg"}">${artHtml(c)}</div>
+      <div>
+        <h2>${esc(c.name)}</h2>
+        <span class="rar" data-r="${esc(c.rarity)}">${esc(c.rarity || "—")}</span>
+        <dl>
+          <dt>Colección</dt><dd>${esc(set?.name)}</dd>
+          <dt>Número</dt><dd>${esc(displayNumber(c))}</dd>
+          ${c.note ? `<dt>Detalles</dt><dd>${esc(c.note)}</dd>` : ""}
+          ${c.by ? `<dt>Origen</dt><dd>Añadida por el grupo</dd>` : ""}
+        </dl>
+        <strong>Quién la tiene</strong>
+        <div class="who">${
+          os.length ? os.map((u) => `<div>${avatar(u)} ${esc(u.name)} · ${qty(c, u.id)} copia${qty(c, u.id) > 1 ? "s" : ""}</div>`).join("") : `<span style="color:var(--muted)">Nadie todavía</span>`
+        }</div>
+        ${state.canWrite ? `<div class="stepper" style="max-width:220px">
+          <button data-dec="${esc(c.id)}">−</button><span>Tengo <b>${qty(c, state.me)}</b></span><button class="add" data-inc="${esc(c.id)}">+</button>
+        </div>` : ""}
+        ${assets && state.canWrite ? `<button class="btn ghost small" data-upload="${esc(c.id)}" style="margin-top:14px">📷 ${imageId(c) ? "Cambiar imagen" : "Subir imagen"}</button>` : ""}
+      </div>
+    </div>`;
+  if (!refresh && !dlg.open) dlg.showModal();
+}
+
+// ------------------------------------------------------------- acciones
+
+function setQty(cardId, n) {
+  if (!state.canWrite) return;
+  const c = allCards().find((x) => x.id === cardId);
+  if (!c) return;
+  const mine = { ...(state.owned.get(state.me) || {}) };
+  const k = keyOf(c.id);
+  n = Math.max(0, Math.min(99, n));
+  if (n) mine[k] = n;
+  else delete mine[k];
+  state.owned.set(state.me, mine);
+  render();
+  scheduleSave();
+}
+
+async function uploadFile(file) {
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error("La imagen tiene que ser JPG, PNG o WebP.");
+  if (file.size > 15 * 1024 * 1024) throw new Error("La imagen pesa más de 15 MB.");
+  try {
+    return (await assets.upload(file)).id;
+  } catch (e) {
+    const msgs = { too_large: "La imagen es demasiado grande.", unsupported_type: "Ese formato de imagen no vale.", quota_or_state: "No queda espacio para más imágenes.", rate_limited: "Demasiadas subidas seguidas, espera un momento." };
+    throw new Error(msgs[e?.code] || "No se pudo subir la imagen. Inténtalo de nuevo.");
+  }
+}
+
+let uploadTarget = null;
+async function uploadImage(cardId, file) {
+  const c = allCards().find((x) => x.id === cardId);
+  if (!c) return;
+  toast("Subiendo imagen…");
+  try {
+    const id = await uploadFile(file);
+    if (c.by) await db.doc(`extra/${keyOf(c.id)}`).update({ asset: id });
+    await db.doc(`images/${keyOf(c.id)}`).set({ asset: id, by: state.me, at: Date.now() });
+    toast("Imagen guardada para todos");
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+async function addCard(e) {
+  if (e.submitter?.value !== "ok") return;
+  e.preventDefault();
+  const err = $("#add-error");
+  err.hidden = true;
+  const btn = e.submitter;
+  try {
+    let set = $("#add-set").value;
+    const number = $("#add-number").value.trim().slice(0, 20);
+    const name = $("#add-name").value.trim().slice(0, 80);
+    const file = $("#add-file").files[0];
+    if (!number || !name) throw new Error("Pon el número y el nombre de la carta.");
+    if (!file) throw new Error("La imagen es obligatoria: sube una foto o escaneo de la carta.");
+    if (set === "__new") {
+      const setName = $("#add-new-set").value.trim().slice(0, 80);
+      if (!setName) throw new Error("Pon nombre a la nueva colección.");
+      set = `x-${keyOf(setName.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-")).slice(0, 60)}`;
+      await db.doc(`extra/set-${set}`).set({ type: "set", id: set, name: setName, kind: "promo", by: state.me });
+    }
+    const id = `${set}-${number}`;
+    if (allCards().some((c) => c.id === id)) throw new Error("Esa carta ya existe en esa colección.");
+    btn.disabled = true;
+    const asset = await uploadFile(file);
+    await db.doc(`extra/${keyOf(id)}`).set({
+      id, set, number, sort: parseInt(number.match(/\d+/)?.[0] ?? "9999", 10), name,
+      rarity: $("#add-rarity").value.trim().slice(0, 40) || null,
+      note: $("#add-note").value.trim().slice(0, 120) || null,
+      asset, by: state.me, at: Date.now(),
+    });
+    $("#dlg-add").close();
+    toast(`«${name}» añadida para todos`);
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.hidden = false;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderMemberList() {
+  const me = state.accounts.get(state.me);
+  $("#member-list").innerHTML = users()
+    .map((u) => `<li>${avatar(u)} <span><b>${esc(u.name)}</b> <small>@${esc(u.id)}${u.admin ? " · admin" : ""}</small></span>
+      ${!u.admin && me?.admin ? `<button type="button" class="btn ghost small" data-del-user="${esc(u.id)}">Quitar</button>` : ""}</li>`)
+    .join("");
+}
+
+async function addMember(e) {
+  if (e.submitter?.value !== "ok") return;
+  e.preventDefault();
+  const err = $("#m-error");
+  err.hidden = true;
+  try {
+    const user = $("#m-user").value.trim().toLowerCase();
+    const name = $("#m-name").value.trim().slice(0, 40) || user;
+    const pass = $("#m-pass").value;
+    if (!/^[a-z0-9_.-]{2,30}$/.test(user)) throw new Error("El usuario solo puede tener letras sin acentos, números, punto, guion o guion bajo.");
+    if (state.accounts.has(user)) throw new Error("Ese usuario ya existe.");
+    if (pass.length < 4) throw new Error("La contraseña necesita al menos 4 caracteres.");
+    await db.doc(`accounts/${user}`).set({ name, pass: await hashPass(user, pass), color: COLORS[state.accounts.size % COLORS.length], admin: false, created: Date.now() });
+    $("#m-user").value = $("#m-name").value = $("#m-pass").value = "";
+    toast(`Usuario ${user} creado`);
+    setTimeout(renderMemberList, 300);
+  } catch (ex) {
+    err.textContent = ex.code === "invalid_argument" ? "Tu acceso no permite crear usuarios." : ex.message;
+    err.hidden = false;
+  }
+}
+
+function setupUI() {
+  $("#form-login").addEventListener("submit", login);
+  $("#file-pick").addEventListener("change", (e) => {
+    const f = e.target.files[0];
+    if (f && uploadTarget) uploadImage(uploadTarget, f);
+  });
+  document.addEventListener("click", (e) => {
+    const up = e.target.closest("[data-upload]");
+    if (up) {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadTarget = up.dataset.upload;
+      $("#file-pick").value = "";
+      $("#file-pick").click();
+      return;
+    }
+    const del = e.target.closest("[data-del-user]");
+    if (del) {
+      const u = del.dataset.delUser;
+      if (del.dataset.confirm) {
+        db.doc(`accounts/${u}`).delete().then(() => { toast(`Usuario ${u} quitado`); setTimeout(renderMemberList, 300); });
+      } else {
+        del.dataset.confirm = "1";
+        del.textContent = "¿Seguro? Toca otra vez";
+      }
+      return;
+    }
+    const t = e.target.closest("[data-inc],[data-dec],[data-open],[data-toggle],[data-set],[data-user],[data-view],[data-close]");
+    if (!t) return;
+    const d = t.dataset;
+    const cardOf = (id) => allCards().find((c) => c.id === id);
+    if (d.inc) setQty(d.inc, qty(cardOf(d.inc), state.me) + 1);
+    else if (d.dec) setQty(d.dec, qty(cardOf(d.dec), state.me) - 1);
+    else if (d.toggle) setQty(d.toggle, qty(cardOf(d.toggle), state.me) ? 0 : 1);
+    else if (d.open) { e.preventDefault(); openCard(d.open); }
+    else if (d.set) { state.set = d.set; lsSet("set", d.set); render(); }
+    else if (d.user) {
+      const own = d.user === state.me;
+      const has = own ? "have" : `has:${d.user}`;
+      const lacks = own ? "missing" : `lacks:${d.user}`;
+      state.owner = state.owner === has ? lacks : state.owner === lacks ? "all" : has;
+      render();
+    } else if (d.view) { state.view = d.view; lsSet("view", d.view); render(); }
+    else if (d.close !== undefined) t.closest("dialog").close();
+  });
+  $("#q").addEventListener("input", (e) => { state.q = e.target.value; render(); });
+  $("#f-rarity").addEventListener("change", (e) => { state.rarity = e.target.value; render(); });
+  $("#f-owner").addEventListener("change", (e) => { state.owner = e.target.value; render(); });
+  $("#img-warning").addEventListener("click", () => { state.owner = "noimage"; state.set = "all"; render(); });
+  $("#dlg-card").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+  $("#btn-logout").addEventListener("click", logout);
+  $("#btn-members").addEventListener("click", () => { renderMemberList(); $("#m-error").hidden = true; $("#dlg-members").showModal(); });
+  $("#form-member").addEventListener("submit", addMember);
+  $("#btn-add").addEventListener("click", () => {
+    $("#form-add").reset();
+    $("#add-error").hidden = true;
+    $("#add-set").innerHTML = allSets().map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("") + `<option value="__new">➕ Nueva colección / producto…</option>`;
+    if (state.set !== "all") $("#add-set").value = state.set;
+    $("#rarities").innerHTML = RARITY_ORDER.map((r) => `<option value="${esc(r)}">`).join("");
+    $("#new-set-row").hidden = true;
+    $("#dlg-add").showModal();
+  });
+  $("#add-set").addEventListener("change", (e) => ($("#new-set-row").hidden = e.target.value !== "__new"));
+  $("#form-add").addEventListener("submit", addCard);
+}
+
+setupUI();
+connect();
+
+</script>
