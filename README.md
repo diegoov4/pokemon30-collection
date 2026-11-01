@@ -33,6 +33,10 @@ Cada carta muestra en una esquina su precio de Cardmarket en euros. Cada persona
 
 El cron horario actualiza 25 cartas en cada pasada, así que el catálogo se renueva unas tres veces al día.
 
+### Idioma de la carta
+
+Al marcar una carta queda en español. Desde su ficha se puede cambiar a inglés, japonés o chino. Cardmarket publica un solo precio por carta, sin separar por idioma, así que el precio se ajusta con un factor estimado (`data/languages.json`) y se marca con «≈».
+
 ## Imágenes (obligatorias)
 
 Todas las cartas tienen imagen, y el Worker guarda una **copia propia en R2**, de modo que no depende de webs externas.

@@ -1,4 +1,5 @@
 import AVATARS from "../data/avatars.json";
+import LANGUAGES from "../data/languages.json";
 
 export interface Env {
   DB: D1Database;
@@ -168,15 +169,16 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
         "SELECT id, set_id, number, name, rarity, note, source, image_status, coalesce(image_checked_at, 0) AS img_v, cm_trend, cm_mid, cm_updated FROM cards ORDER BY set_id, sort_key, number",
       ),
       env.DB.prepare("SELECT id, name, color, avatar, is_admin FROM users ORDER BY is_admin DESC, created_at"),
-      env.DB.prepare("SELECT c.user_id, c.card_id, c.qty FROM collection c JOIN users u ON u.id = c.user_id WHERE u.is_admin = 0"),
+      env.DB.prepare("SELECT c.user_id, c.card_id, c.qty, c.lang FROM collection c JOIN users u ON u.id = c.user_id WHERE u.is_admin = 0"),
     ]);
     return json({
       me: user,
       avatars: AVATARS,
+      languages: LANGUAGES,
       sets: sets.results,
       cards: cards.results,
       users: users.results,
-      owned: (owned.results as { user_id: string; card_id: string; qty: number }[]).map((r) => [r.user_id, r.card_id, r.qty]),
+      owned: (owned.results as { user_id: string; card_id: string; qty: number; lang: string }[]).map((r) => [r.user_id, r.card_id, r.qty, r.lang]),
     });
   }
 
@@ -184,7 +186,8 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
   if (m && req.method === "PUT") {
     if (user.is_admin) throw new HttpError(403, "El administrador no tiene colección");
     const cardId = decodeURIComponent(m[1]);
-    const { qty } = (await req.json()) as { qty: number };
+    const { qty, lang } = (await req.json()) as { qty: number; lang?: string };
+    if (lang !== undefined && !LANGUAGES.some((l) => l.code === lang)) throw new HttpError(400, "Idioma no válido");
     const n = Math.max(0, Math.min(99, Math.floor(Number(qty) || 0)));
     const card = await env.DB.prepare("SELECT id FROM cards WHERE id = ?").bind(cardId).first();
     if (!card) throw new HttpError(404, "Carta no encontrada");
@@ -192,10 +195,10 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
       await env.DB.prepare("DELETE FROM collection WHERE user_id = ? AND card_id = ?").bind(user.id, cardId).run();
     } else {
       await env.DB.prepare(
-        `INSERT INTO collection (user_id, card_id, qty) VALUES (?, ?, ?)
-         ON CONFLICT(user_id, card_id) DO UPDATE SET qty = excluded.qty, updated_at = unixepoch()`,
+        `INSERT INTO collection (user_id, card_id, qty, lang) VALUES (?1, ?2, ?3, coalesce(?4, 'es'))
+         ON CONFLICT(user_id, card_id) DO UPDATE SET qty = excluded.qty, lang = coalesce(?4, collection.lang), updated_at = unixepoch()`,
       )
-        .bind(user.id, cardId, n)
+        .bind(user.id, cardId, n, lang ?? null)
         .run();
     }
     return json({ ok: true, qty: n });

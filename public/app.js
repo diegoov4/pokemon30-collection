@@ -7,6 +7,8 @@ const state = {
   cards: [],
   users: [],
   avatars: [],
+  languages: [],
+  langs: new Map(), // cardId -> Map(userId -> idioma), solo los que no son español
   owned: new Map(), // cardId -> Map(userId -> qty)
   view: localGet("view") || "grid",
   set: localGet("set") || "all",
@@ -53,10 +55,13 @@ async function load() {
   state.cards = data.cards;
   state.users = data.users;
   state.avatars = data.avatars;
+  state.languages = data.languages;
   state.owned = new Map();
-  for (const [u, c, q] of data.owned) {
+  state.langs = new Map();
+  for (const [u, c, q, l] of data.owned) {
     if (!state.owned.has(c)) state.owned.set(c, new Map());
     state.owned.get(c).set(u, q);
+    setLocalLang(c, u, l);
   }
   if (state.set !== "all" && !state.sets.some((s) => s.id === state.set)) state.set = "all";
 }
@@ -145,13 +150,35 @@ function qty(cardId, userId) {
 const euros = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
 const price = (v) => (v == null ? "—" : euros.format(v));
 
+function setLocalLang(cardId, userId, lang) {
+  if (!state.langs.has(cardId)) state.langs.set(cardId, new Map());
+  if (lang === "es") state.langs.get(cardId).delete(userId);
+  else state.langs.get(cardId).set(userId, lang);
+}
+
+const cardLang = (cardId, userId) => state.langs.get(cardId)?.get(userId) || "es";
+const langInfo = (code) => state.languages.find((l) => l.code === code) || { code, name: code, factor: 1 };
+
+// Cardmarket da un solo precio por carta, sin separar por idioma: se ajusta con el factor de data/languages.json
+function cardPrice(c, metric, userId) {
+  const v = c[metric];
+  if (v == null) return null;
+  return userId && qty(c.id, userId) ? v * langInfo(cardLang(c.id, userId)).factor : v;
+}
+
+function langTag(c, userId) {
+  const lang = userId && qty(c.id, userId) ? cardLang(c.id, userId) : "es";
+  return lang === "es" ? "" : `<span class="langtag" title="${esc(langInfo(lang).name)}">${esc(lang.toUpperCase())}</span>`;
+}
+
 const metricName = (m) => (m === "cm_mid" ? "Mid" : "Trend");
 
 // Precio elegido por cada usuario, en una esquina de la carta
-function priceTag(c) {
-  const v = c[state.me.price_metric];
+function priceTag(c, userId = state.me.id) {
+  const v = cardPrice(c, state.me.price_metric, userId);
   if (state.me.hide_prices || v == null) return "";
-  return `<span class="pricetag" title="${metricName(state.me.price_metric)} en Cardmarket">${price(v)}</span>`;
+  const estimated = userId && qty(c.id, userId) && cardLang(c.id, userId) !== "es";
+  return `<span class="pricetag" title="${metricName(state.me.price_metric)} en Cardmarket${estimated ? ", estimado por idioma" : ""}">${estimated ? "≈ " : ""}${price(v)}</span>`;
 }
 
 function cardsInScope() {
@@ -165,7 +192,7 @@ function filtered() {
     if (state.rarity && c.rarity !== state.rarity) return false;
     if (q && !`${c.name} ${c.number} ${c.note || ""} ${c.rarity || ""}`.toLowerCase().includes(q)) return false;
     if (!state.me.hide_prices && (state.priceMin !== "" || state.priceMax !== "")) {
-      const p = c[state.priceMetric];
+      const p = cardPrice(c, state.priceMetric, me);
       if (p == null) return false;
       if (state.priceMin !== "" && p < Number(state.priceMin)) return false;
       if (state.priceMax !== "" && p > Number(state.priceMax)) return false;
@@ -305,7 +332,7 @@ function renderGrid(list) {
     .map((c) => {
       const mine = qty(c.id, me.id);
       return `<article class="card ${mine ? "mine" : ""}" style="--c:${esc(me.color)}" data-card="${esc(c.id)}">
-        <button class="art ${c.image_status === "missing" || brokenImages.has(c.id) ? "noimg" : ""}" data-open="${esc(c.id)}" aria-label="Ver ${esc(c.name)}">${artHtml(c)}<span class="numtag">${esc(displayNumber(c))}</span>${priceTag(c)}</button>
+        <button class="art ${c.image_status === "missing" || brokenImages.has(c.id) ? "noimg" : ""}" data-open="${esc(c.id)}" aria-label="Ver ${esc(c.name)}">${artHtml(c)}<span class="numtag">${esc(displayNumber(c))}</span>${langTag(c, me.id)}${priceTag(c)}</button>
         <div class="meta"><strong>${esc(c.name)}</strong><span class="rar" data-r="${esc(c.rarity)}">${esc(c.rarity || "—")}</span></div>
         <div class="owners">${ownersHtml(c)}</div>
         ${me.is_admin ? "" : `<div class="stepper">
@@ -335,7 +362,7 @@ function renderTable(list) {
           }</td>`;
         })
         .join("");
-      return `<tr><td class="n">${esc(displayNumber(c))}</td><td><a href="#" data-open="${esc(c.id)}">${esc(c.name)}</a></td><td><span class="rar" data-r="${esc(c.rarity)}">${esc(c.rarity || "—")}</span></td>${showPrices ? `<td class="price">${price(c.cm_trend)}</td><td class="price">${price(c.cm_mid)}</td>` : ""}${cells}</tr>`;
+      return `<tr><td class="n">${esc(displayNumber(c))}</td><td><a href="#" data-open="${esc(c.id)}">${esc(c.name)}</a></td><td><span class="rar" data-r="${esc(c.rarity)}">${esc(c.rarity || "—")}</span></td>${showPrices ? `<td class="price">${price(cardPrice(c, "cm_trend", state.me.id))}</td><td class="price">${price(cardPrice(c, "cm_mid", state.me.id))}</td>` : ""}${cells}</tr>`;
     })
     .join("");
   const foot = `<tfoot><tr><td colspan="${showPrices ? 5 : 3}" style="text-align:left">Total en esta vista</td>${users
@@ -349,10 +376,11 @@ function openCard(id) {
   if (!c) return;
   const set = setById(c.set_id);
   const owners = state.owned.get(c.id);
+  const mineLang = qty(c.id, state.me.id) ? cardLang(c.id, state.me.id) : "es";
   const dlg = $("#dlg-card");
   dlg.innerHTML = `<button class="btn ghost small close" data-close>✕</button>
     <div class="cd">
-      <div class="art ${c.image_status === "missing" || brokenImages.has(c.id) ? "noimg" : ""}">${artHtml(c)}${priceTag(c)}</div>
+      <div class="art ${c.image_status === "missing" || brokenImages.has(c.id) ? "noimg" : ""}">${artHtml(c)}${langTag(c, state.me.id)}${priceTag(c)}</div>
       <div>
         <h2>${esc(c.name)}</h2>
         <span class="rar" data-r="${esc(c.rarity)}">${esc(c.rarity || "—")}</span>
@@ -361,19 +389,23 @@ function openCard(id) {
           <dt>Número</dt><dd>${esc(displayNumber(c))}</dd>
           ${c.note ? `<dt>Detalles</dt><dd>${esc(c.note)}</dd>` : ""}
           ${c.source === "manual" ? `<dt>Origen</dt><dd>Añadida por el grupo</dd>` : ""}
-          ${state.me.hide_prices ? "" : `<dt>Trend</dt><dd>${price(c.cm_trend)}</dd>
-          <dt>Mid</dt><dd>${price(c.cm_mid)}</dd>
+          ${state.me.hide_prices ? "" : `<dt>Trend</dt><dd>${price(cardPrice(c, "cm_trend", state.me.id))}</dd>
+          <dt>Mid</dt><dd>${price(cardPrice(c, "cm_mid", state.me.id))}</dd>
+          ${mineLang !== "es" ? `<dt>Ajuste</dt><dd>${esc(langInfo(mineLang).name)}: estimado × ${String(langInfo(mineLang).factor).replace(".", ",")}</dd>` : ""}
           ${c.cm_updated ? `<dt>Cardmarket</dt><dd>Actualizado el ${esc(new Date(c.cm_updated).toLocaleDateString("es-ES"))}</dd>` : ""}`}
         </dl>
         <strong>Quién la tiene</strong>
         <div class="who">${
           owners?.size
-            ? state.users.filter((u) => owners.has(u.id)).map((u) => `<div>${avatar(u)} ${esc(u.name)} · ${owners.get(u.id)} copia${owners.get(u.id) > 1 ? "s" : ""}</div>`).join("")
+            ? state.users.filter((u) => owners.has(u.id)).map((u) => `<div>${avatar(u)} ${esc(u.name)} · ${owners.get(u.id)} copia${owners.get(u.id) > 1 ? "s" : ""} · ${esc(langInfo(cardLang(c.id, u.id)).name)}</div>`).join("")
             : `<span class="none" style="color:var(--muted)">Nadie todavía</span>`
         }</div>
         ${state.me.is_admin ? "" : `<div class="stepper" style="max-width:220px">
           <button data-dec="${esc(c.id)}">−</button><span>Tengo <b>${qty(c.id, state.me.id)}</b></span><button class="add" data-inc="${esc(c.id)}">+</button>
         </div>`}
+        ${qty(c.id, state.me.id) ? `<div class="lang-pick"><span>Idioma de mi carta</span><div class="seg" role="group" aria-label="Idioma de mi carta">${state.languages
+          .map((l) => `<button type="button" class="${l.code === mineLang ? "on" : ""}" data-lang="${esc(l.code)}" data-lang-card="${esc(c.id)}">${esc(l.name)}</button>`)
+          .join("")}</div></div>` : ""}
         <button class="btn ghost small" data-upload="${esc(c.id)}" style="margin-top:14px">📷 Cambiar imagen</button>
       </div>
     </div>`;
@@ -389,7 +421,10 @@ async function setQty(cardId, n) {
   const apply = (v) => {
     if (!state.owned.has(cardId)) state.owned.set(cardId, new Map());
     if (v) state.owned.get(cardId).set(me, v);
-    else state.owned.get(cardId).delete(me);
+    else {
+      state.owned.get(cardId).delete(me);
+      setLocalLang(cardId, me, "es"); // al quitarla del todo, la próxima vuelve a ser en español
+    }
   };
   apply(n);
   render();
@@ -399,6 +434,23 @@ async function setQty(cardId, n) {
   } catch (e) {
     apply(prev);
     render();
+    toast(`No se pudo guardar: ${e.message}`);
+  }
+}
+
+async function setLang(cardId, lang) {
+  const me = state.me.id;
+  const prev = cardLang(cardId, me);
+  const apply = (l) => {
+    setLocalLang(cardId, me, l);
+    render();
+    if ($("#dlg-card").open) openCard(cardId);
+  };
+  apply(lang);
+  try {
+    await api(`/api/collection/${encodeURIComponent(cardId)}`, { method: "PUT", body: JSON.stringify({ qty: qty(cardId, me), lang }) });
+  } catch (e) {
+    apply(prev);
     toast(`No se pudo guardar: ${e.message}`);
   }
 }
@@ -462,10 +514,11 @@ function albumOwnerName() {
 function pocketHtml(c) {
   const n = albumQty(c.id);
   const open = `data-open="${esc(c.id)}"`;
-  if (!n) return `<button type="button" class="slot empty" ${open} aria-label="Falta ${esc(c.name)}"><span class="no">${esc(displayNumber(c))}</span><span class="nm">${esc(c.name)}</span>${priceTag(c)}</button>`;
+  const albumUser = album.owner === "__group" ? null : album.owner;
+  if (!n) return `<button type="button" class="slot empty" ${open} aria-label="Falta ${esc(c.name)}"><span class="no">${esc(displayNumber(c))}</span><span class="nm">${esc(c.name)}</span>${priceTag(c, null)}</button>`;
   const img = c.image_status === "missing" || brokenImages.has(c.id) ? "" : `<img src="${esc(imgUrl(c))}" alt="" data-id="${esc(c.id)}" onerror="p30ImgError(this)">`;
   const copies = n > 1 && album.owner !== "__group" ? `<sup>×${n}</sup>` : "";
-  return `<button type="button" class="slot has" ${open} aria-label="${esc(c.name)}"><span class="nm">${esc(c.name)}</span>${img}${copies}${priceTag(c)}</button>`;
+  return `<button type="button" class="slot has" ${open} aria-label="${esc(c.name)}"><span class="nm">${esc(c.name)}</span>${img}${copies}${langTag(c, albumUser)}${priceTag(c, albumUser)}</button>`;
 }
 
 function albumPageHtml(page) {
@@ -779,7 +832,7 @@ async function chooseAvatar(value) {
 // Copias × precio actual; las cartas sin precio no suman
 function memberValue(u) {
   const metric = state.me.price_metric;
-  return state.cards.reduce((sum, c) => sum + qty(c.id, u.id) * (c[metric] || 0), 0);
+  return state.cards.reduce((sum, c) => sum + qty(c.id, u.id) * (cardPrice(c, metric, u.id) || 0), 0);
 }
 
 // Valor oculto por defecto, con un ojo como en los campos de contraseña. Al volver a abrir el menú, todos ocultos otra vez.
@@ -941,10 +994,11 @@ function setupUI() {
   document.addEventListener("click", (e) => {
     const up = e.target.closest("[data-upload]");
     if (up) { e.preventDefault(); e.stopPropagation(); pickImage(up.dataset.upload); return; }
-    const t = e.target.closest("[data-inc],[data-dec],[data-open],[data-toggle],[data-set],[data-user],[data-view],[data-close]");
+    const t = e.target.closest("[data-inc],[data-dec],[data-open],[data-toggle],[data-set],[data-user],[data-view],[data-close],[data-lang]");
     if (!t) return;
     const d = t.dataset;
-    if (d.inc) setQty(d.inc, qty(d.inc, state.me.id) + 1);
+    if (d.lang) setLang(d.langCard, d.lang);
+    else if (d.inc) setQty(d.inc, qty(d.inc, state.me.id) + 1);
     else if (d.dec) setQty(d.dec, qty(d.dec, state.me.id) - 1);
     else if (d.toggle) setQty(d.toggle, qty(d.toggle, state.me.id) ? 0 : 1);
     else if (d.open) { e.preventDefault(); openCard(d.open); }
