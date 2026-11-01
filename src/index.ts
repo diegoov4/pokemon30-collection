@@ -41,6 +41,7 @@ export default {
       ctx.waitUntil(syncFromTcgdex(env).then((r) => console.log("sync", JSON.stringify(r))));
     } else {
       ctx.waitUntil(warmImages(env).then((r) => console.log("images", JSON.stringify(r))));
+      ctx.waitUntil(refreshPrices(env).then((r) => console.log("prices", JSON.stringify(r))));
     }
   },
 } satisfies ExportedHandler<Env>;
@@ -162,7 +163,7 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
     const [sets, cards, users, owned] = await env.DB.batch([
       env.DB.prepare("SELECT id, name, kind, release_date, official, logo FROM sets ORDER BY sort_order, release_date, name"),
       env.DB.prepare(
-        "SELECT id, set_id, number, name, rarity, note, source, image_status, coalesce(image_checked_at, 0) AS img_v FROM cards ORDER BY set_id, sort_key, number",
+        "SELECT id, set_id, number, name, rarity, note, source, image_status, coalesce(image_checked_at, 0) AS img_v, cm_trend, cm_mid, cm_updated FROM cards ORDER BY set_id, sort_key, number",
       ),
       env.DB.prepare("SELECT id, name, color, avatar, is_admin FROM users ORDER BY is_admin DESC, created_at"),
       env.DB.prepare("SELECT c.user_id, c.card_id, c.qty FROM collection c JOIN users u ON u.id = c.user_id WHERE u.is_admin = 0"),
@@ -395,6 +396,56 @@ async function syncFromTcgdex(env: Env) {
     added += (after?.n ?? 0) - (before?.n ?? 0);
   }
   return { ok: true, sets: targets.map((t) => t.name), added };
+}
+
+// ---------------------------------------------------------------- precios Cardmarket
+
+const PRICES_PER_RUN = 25;
+const PRICE_MAX_AGE = 6 * 3600;
+
+/** ".../es/me/30th/001" → "30th-001", el id de la carta en la API de TCGdex. */
+function tcgdexCardId(image: string): string | null {
+  const m = image.match(/assets\.tcgdex\.net\/[^/]+\/[^/]+\/([^/]+)\/([^/.]+)$/);
+  return m ? `${m[1]}-${m[2]}` : null;
+}
+
+/** Las cartas que solo existen en versión holo traen el precio en los campos "-holo". */
+function pickPrice(cm: Record<string, unknown>, field: string): number | null {
+  for (const key of [field, `${field}-holo`]) {
+    const v = cm[key];
+    if (typeof v === "number" && v > 0) return v;
+  }
+  return null;
+}
+
+/** Cron: actualiza por tandas los precios más antiguos (Cardmarket los renueva una vez al día). */
+async function refreshPrices(env: Env) {
+  const { results } = await env.DB.prepare(
+    `SELECT id, image FROM cards WHERE image LIKE '%assets.tcgdex.net%' AND coalesce(cm_checked_at, 0) < unixepoch() - ?
+     ORDER BY coalesce(cm_checked_at, 0) LIMIT ?`,
+  )
+    .bind(PRICE_MAX_AGE, PRICES_PER_RUN)
+    .all<{ id: string; image: string }>();
+  let updated = 0;
+  const stmts: D1PreparedStatement[] = [];
+  for (const card of results) {
+    const tcgdexId = tcgdexCardId(card.image);
+    let cm: Record<string, unknown> | null = null;
+    if (tcgdexId) {
+      const res = await fetch(`${TCGDEX}/cards/${encodeURIComponent(tcgdexId)}`).catch(() => null);
+      // Un fallo puntual de TCGdex se reintenta en la siguiente tanda
+      if (!res || res.status >= 500) continue;
+      if (res.ok) cm = ((await res.json()) as { pricing?: { cardmarket?: Record<string, unknown> | null } }).pricing?.cardmarket ?? null;
+    }
+    if (cm) updated++;
+    stmts.push(
+      env.DB.prepare(
+        `UPDATE cards SET cm_trend = coalesce(?, cm_trend), cm_mid = coalesce(?, cm_mid), cm_updated = coalesce(?, cm_updated), cm_checked_at = unixepoch() WHERE id = ?`,
+      ).bind(cm && pickPrice(cm, "trend"), cm && pickPrice(cm, "avg"), cm && typeof cm.updated === "string" ? cm.updated : null, card.id),
+    );
+  }
+  if (stmts.length) await env.DB.batch(stmts);
+  return { checked: results.length, updated };
 }
 
 // ---------------------------------------------------------------- imágenes

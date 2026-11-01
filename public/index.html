@@ -38,6 +38,7 @@
       </div>
       <div class="me">
         <button class="btn ghost" id="btn-add" title="Dar de alta una carta nueva (promos, productos futuros…)">＋ Añadir carta</button>
+        <button class="btn ghost" id="btn-album" title="Ver las cartas como un álbum real">Vista de álbum</button>
         <button class="btn ghost" id="btn-sync" title="Buscar cartas nuevas en TCGdex">⟳ Sincronizar</button>
         <button class="btn ghost" id="btn-members">Miembros</button>
         <button class="me-avatar" id="me-avatar" title="Cambiar mi avatar" aria-label="Cambiar mi avatar"></button>
@@ -62,6 +63,14 @@
           <input type="search" id="q" placeholder="Buscar por nombre, número o ilustrador…" />
           <select id="f-rarity"><option value="">Todas las rarezas</option></select>
           <select id="f-owner"></select>
+          <div class="price-filter" role="group" aria-label="Filtrar por precio de Cardmarket">
+            <select id="f-price-metric" aria-label="Precio">
+              <option value="cm_trend">Trend</option>
+              <option value="cm_mid">Mid</option>
+            </select>
+            <input type="number" id="f-price-min" min="0" step="0.01" inputmode="decimal" placeholder="Mín €" aria-label="Precio mínimo" />
+            <input type="number" id="f-price-max" min="0" step="0.01" inputmode="decimal" placeholder="Máx €" aria-label="Precio máximo" />
+          </div>
           <div class="seg" role="group" aria-label="Vista">
             <button data-view="grid" class="on">Cartas</button>
             <button data-view="table">Tabla</button>
@@ -76,7 +85,7 @@
     </main>
 
     <footer>
-      Datos de cartas: lista oficial + <a href="https://tcgdex.dev" target="_blank" rel="noopener">TCGdex</a> (sincronización diaria). Pokémon y sus marcas son © de sus propietarios; app de fans sin afiliación.
+      Datos de cartas: lista oficial + <a href="https://tcgdex.dev" target="_blank" rel="noopener">TCGdex</a> (sincronización diaria). Precios de Cardmarket vía TCGdex (Mid = precio medio de venta). Pokémon y sus marcas son © de sus propietarios; app de fans sin afiliación.
     </footer>
   </div>
 
@@ -140,6 +149,24 @@
     <h2>Elige tu avatar</h2>
     <div class="avatar-grid" id="avatar-grid"></div>
     <menu><button type="button" class="btn ghost" data-close>Cerrar</button></menu>
+  </dialog>
+
+  <dialog id="dlg-album">
+    <div class="album-bar">
+      <select id="album-owner" aria-label="De quién es el álbum"></select>
+      <select id="album-set" aria-label="Colección"></select>
+      <div class="album-nav">
+        <button type="button" class="btn ghost small" id="album-prev" aria-label="Página anterior">←</button>
+        <input type="range" id="album-range" min="0" value="0" aria-label="Ir a la página" />
+        <button type="button" class="btn ghost small" id="album-next" aria-label="Página siguiente">→</button>
+        <span id="album-pos"></span>
+      </div>
+      <button type="button" class="btn ghost small" data-close>✕ Cerrar</button>
+    </div>
+    <div class="album-stage" id="album-stage">
+      <div class="album-book" id="album-book"></div>
+    </div>
+    <p class="album-hint">Arrastra una página a un lado para pasarla · arrastra en vertical o por el fondo para girar el álbum · doble clic para centrarlo</p>
   </dialog>
 
   <dialog id="dlg-card" class="card-dialog"></dialog>

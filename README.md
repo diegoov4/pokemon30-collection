@@ -20,6 +20,19 @@ App colaborativa en un **Cloudflare Worker** para llevar el control de las carta
   - **Progreso**: el de cada coleccionista y el del grupo entero.
   - **Refresco automático** cada 20 s.
 
+## Vista de álbum
+
+El botón **Vista de álbum** abre un álbum en 3D con 9 fundas por página, en orden de colección y número. Las cartas que no se tienen dejan su funda vacía con el número impreso. Se puede ver el álbum propio, el de otra persona o el de todo el grupo.
+
+## Precios de Cardmarket
+
+Cada carta muestra dos precios de Cardmarket en euros, que salen de la API de TCGdex y se pueden filtrar por rango:
+
+- **Trend**: `trend` de Cardmarket.
+- **Mid**: `avg` de Cardmarket, el precio medio de venta. Cardmarket no tiene ningún campo llamado «mid».
+
+El cron horario actualiza 25 cartas en cada pasada, así que el catálogo se renueva unas tres veces al día.
+
 ## Imágenes (obligatorias)
 
 Todas las cartas tienen imagen, y el Worker guarda una **copia propia en R2**, de modo que no depende de webs externas.

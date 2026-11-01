@@ -13,6 +13,9 @@ const state = {
   q: "",
   rarity: "",
   owner: "all",
+  priceMetric: "cm_trend",
+  priceMin: "",
+  priceMax: "",
 };
 
 const RARITY_ORDER = ["Común", "Poco común", "Rara", "Rara doble", "Rara Pikachu", "Rara ilustración", "Rara ilustración especial", "Rara futurista", "Rara RGB", "Clásica", "Promo"];
@@ -139,6 +142,14 @@ function qty(cardId, userId) {
   return state.owned.get(cardId)?.get(userId) || 0;
 }
 
+const euros = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
+const price = (v) => (v == null ? "—" : euros.format(v));
+
+function pricesHtml(c) {
+  if (c.cm_trend == null && c.cm_mid == null) return `<div class="prices none"><span>Sin precio en Cardmarket</span></div>`;
+  return `<div class="prices"><span>Trend <b>${price(c.cm_trend)}</b></span><span>Mid <b>${price(c.cm_mid)}</b></span></div>`;
+}
+
 function cardsInScope() {
   return state.set === "all" ? state.cards : state.cards.filter((c) => c.set_id === state.set);
 }
@@ -149,6 +160,12 @@ function filtered() {
   return cardsInScope().filter((c) => {
     if (state.rarity && c.rarity !== state.rarity) return false;
     if (q && !`${c.name} ${c.number} ${c.note || ""} ${c.rarity || ""}`.toLowerCase().includes(q)) return false;
+    if (state.priceMin !== "" || state.priceMax !== "") {
+      const p = c[state.priceMetric];
+      if (p == null) return false;
+      if (state.priceMin !== "" && p < Number(state.priceMin)) return false;
+      if (state.priceMax !== "" && p > Number(state.priceMax)) return false;
+    }
     const owners = state.owned.get(c.id);
     const mine = qty(c.id, me);
     switch (state.owner) {
@@ -181,6 +198,7 @@ function render() {
   document.querySelectorAll(".seg button").forEach((b) => b.classList.toggle("on", b.dataset.view === state.view));
   if (state.view === "grid") renderGrid(list);
   else renderTable(list);
+  if ($("#dlg-album").open) refreshAlbum();
 }
 
 function renderImageWarning() {
@@ -285,6 +303,7 @@ function renderGrid(list) {
       return `<article class="card ${mine ? "mine" : ""}" style="--c:${esc(me.color)}" data-card="${esc(c.id)}">
         <button class="art ${c.image_status === "missing" || brokenImages.has(c.id) ? "noimg" : ""}" data-open="${esc(c.id)}" aria-label="Ver ${esc(c.name)}">${artHtml(c)}<span class="numtag">${esc(displayNumber(c))}</span></button>
         <div class="meta"><strong>${esc(c.name)}</strong><span class="rar" data-r="${esc(c.rarity)}">${esc(c.rarity || "—")}</span></div>
+        ${pricesHtml(c)}
         <div class="owners">${ownersHtml(c)}</div>
         ${me.is_admin ? "" : `<div class="stepper">
           <button data-dec="${esc(c.id)}" aria-label="Quitar una" ${mine ? "" : "disabled style=visibility:hidden"}>−</button>
@@ -298,7 +317,7 @@ function renderGrid(list) {
 
 function renderTable(list) {
   const users = collectors();
-  const head = `<thead><tr><th>Nº</th><th>Carta</th><th>Rareza</th>${users
+  const head = `<thead><tr><th>Nº</th><th>Carta</th><th>Rareza</th><th>Trend</th><th>Mid</th>${users
     .map((u) => `<th class="u">${avatar(u)}${esc(u.name.split(" ")[0])}</th>`)
     .join("")}</tr></thead>`;
   const body = list
@@ -312,10 +331,10 @@ function renderTable(list) {
           }</td>`;
         })
         .join("");
-      return `<tr><td class="n">${esc(displayNumber(c))}</td><td><a href="#" data-open="${esc(c.id)}">${esc(c.name)}</a></td><td><span class="rar" data-r="${esc(c.rarity)}">${esc(c.rarity || "—")}</span></td>${cells}</tr>`;
+      return `<tr><td class="n">${esc(displayNumber(c))}</td><td><a href="#" data-open="${esc(c.id)}">${esc(c.name)}</a></td><td><span class="rar" data-r="${esc(c.rarity)}">${esc(c.rarity || "—")}</span></td><td class="price">${price(c.cm_trend)}</td><td class="price">${price(c.cm_mid)}</td>${cells}</tr>`;
     })
     .join("");
-  const foot = `<tfoot><tr><td colspan="3" style="text-align:left">Total en esta vista</td>${users
+  const foot = `<tfoot><tr><td colspan="5" style="text-align:left">Total en esta vista</td>${users
     .map((u) => `<td>${list.filter((c) => qty(c.id, u.id)).length}</td>`)
     .join("")}</tr></tfoot>`;
   $("#table").innerHTML = head + `<tbody>${body}</tbody>` + foot;
@@ -338,6 +357,9 @@ function openCard(id) {
           <dt>Número</dt><dd>${esc(displayNumber(c))}</dd>
           ${c.note ? `<dt>Detalles</dt><dd>${esc(c.note)}</dd>` : ""}
           ${c.source === "manual" ? `<dt>Origen</dt><dd>Añadida por el grupo</dd>` : ""}
+          <dt>Trend</dt><dd>${price(c.cm_trend)}</dd>
+          <dt>Mid</dt><dd>${price(c.cm_mid)}</dd>
+          ${c.cm_updated ? `<dt>Cardmarket</dt><dd>Actualizado el ${esc(new Date(c.cm_updated).toLocaleDateString("es-ES"))}</dd>` : ""}
         </dl>
         <strong>Quién la tiene</strong>
         <div class="who">${
@@ -398,6 +420,232 @@ async function uploadImage(cardId, file) {
   } catch (e) {
     toast(e.message);
   }
+}
+
+// ------------------------------------------------------------- álbum 3D
+
+const ALBUM_POCKETS = 9;
+const albumNarrow = window.matchMedia("(max-width: 760px)");
+const album = { owner: "", set: "all", pages: [], leaves: 0, flipped: 0, side: "right", rx: 10, ry: 0, drag: null };
+
+function albumQty(cardId) {
+  return album.owner === "__group" ? state.owned.get(cardId)?.size || 0 : qty(cardId, album.owner);
+}
+
+function albumCards() {
+  return state.sets.filter((s) => album.set === "all" || s.id === album.set).flatMap((s) => state.cards.filter((c) => c.set_id === s.id));
+}
+
+// Portada, interior, una hoja de fundas por cada 9 cartas en orden, guarda y contraportada
+function albumPages() {
+  const pages = [{ kind: "cover" }, { kind: "inside" }];
+  let number = 0;
+  for (const set of state.sets) {
+    if (album.set !== "all" && set.id !== album.set) continue;
+    const cards = state.cards.filter((c) => c.set_id === set.id);
+    for (let i = 0; i < cards.length; i += ALBUM_POCKETS) pages.push({ kind: "pockets", set, cards: cards.slice(i, i + ALBUM_POCKETS), number: ++number });
+  }
+  if (pages.length % 2) pages.push({ kind: "blank" });
+  pages.push({ kind: "blank" }, { kind: "back" });
+  return pages;
+}
+
+function albumOwnerName() {
+  if (album.owner === "__group") return "Entre todos";
+  return state.users.find((u) => u.id === album.owner)?.name || "";
+}
+
+function pocketHtml(c) {
+  const n = albumQty(c.id);
+  const open = `data-open="${esc(c.id)}"`;
+  if (!n) return `<button type="button" class="slot empty" ${open} aria-label="Falta ${esc(c.name)}"><span class="no">${esc(displayNumber(c))}</span><span class="nm">${esc(c.name)}</span></button>`;
+  const img = c.image_status === "missing" || brokenImages.has(c.id) ? "" : `<img src="${esc(imgUrl(c))}" alt="" data-id="${esc(c.id)}" onerror="p30ImgError(this)">`;
+  const copies = n > 1 && album.owner !== "__group" ? `<sup>×${n}</sup>` : "";
+  return `<button type="button" class="slot has" ${open} aria-label="${esc(c.name)}"><span class="nm">${esc(c.name)}</span>${img}${copies}</button>`;
+}
+
+function albumPageHtml(page) {
+  const cards = albumCards();
+  const have = cards.filter((c) => albumQty(c.id)).length;
+  const pct = cards.length ? Math.round((have / cards.length) * 100) : 0;
+  const setName = album.set === "all" ? "Todas las colecciones" : setById(album.set)?.name;
+  switch (page.kind) {
+    case "cover":
+      return `<div class="badge30 big"><span>30</span></div><h2>Pokémon 30</h2><p>${esc(setName)}</p><p class="owner">${esc(albumOwnerName())}</p>`;
+    case "inside":
+      return `<p>Álbum de ${esc(albumOwnerName())}</p><strong>${have} / ${cards.length}</strong><div class="bar"><i style="width:${pct}%"></i></div><p>${pct}% completado · faltan ${cards.length - have}</p>`;
+    case "pockets":
+      return `<div class="album-pockets">${page.cards.map(pocketHtml).join("")}</div><div class="album-foot"><span>${esc(page.set.name)}</span><span>${page.number}</span></div>`;
+    case "back":
+      return `<div class="badge30"><span>30</span></div>`;
+    default:
+      return "";
+  }
+}
+
+function fillAlbumFace(face) {
+  const page = album.pages[Number(face.dataset.page)];
+  face.classList.toggle("album-cover", page.kind === "cover" || page.kind === "back");
+  face.classList.toggle("album-inside", page.kind === "inside");
+  face.innerHTML = albumPageHtml(page);
+  face.dataset.filled = "1";
+}
+
+function buildAlbum() {
+  album.pages = albumPages();
+  album.leaves = album.pages.length / 2;
+  album.flipped = Math.min(album.flipped, album.leaves);
+  let html = `<div class="album-block left"></div><div class="album-block right"></div>`;
+  for (let i = 0; i < album.leaves; i++) {
+    html += `<div class="album-leaf" data-leaf="${i}"><div class="album-face front" data-page="${i * 2}"></div><div class="album-face back" data-page="${i * 2 + 1}"></div></div>`;
+  }
+  $("#album-book").innerHTML = html;
+  $("#album-range").max = album.leaves;
+  updateAlbum();
+}
+
+function refreshAlbum() {
+  const count = albumPages().length;
+  if (count !== album.pages.length) return buildAlbum();
+  album.pages = albumPages();
+  document.querySelectorAll('#album-book .album-face[data-filled="1"]').forEach(fillAlbumFace);
+}
+
+function albumLeafTransform(i) {
+  // Las hojas apiladas se separan un poco en Z para que no parpadeen al coincidir en el mismo plano
+  return i < album.flipped ? `rotateY(-180deg) translateZ(${(album.flipped - 1 - i) * 0.5}px)` : `rotateY(0deg) translateZ(${-(i - album.flipped) * 0.5}px)`;
+}
+
+function updateAlbumBook() {
+  let x = 0;
+  if (albumNarrow.matches) x = album.side === "left" ? 25 : -25;
+  else if (album.flipped === 0) x = -25;
+  else if (album.flipped === album.leaves) x = 25;
+  $("#album-book").style.transform = `translateX(${x}%) rotateX(${album.rx}deg) rotateY(${album.ry}deg)`;
+}
+
+function updateAlbum() {
+  const { flipped, leaves } = album;
+  document.querySelectorAll("#album-book .album-leaf").forEach((leaf) => {
+    const i = Number(leaf.dataset.leaf);
+    leaf.classList.remove("dragging");
+    leaf.style.transform = albumLeafTransform(i);
+    // Solo se pintan las hojas cercanas: así no se piden las 209 imágenes de golpe
+    const near = i >= flipped - 2 && i <= flipped + 1;
+    leaf.style.display = near ? "" : "none";
+    if (near) leaf.querySelectorAll('.album-face:not([data-filled="1"])').forEach(fillAlbumFace);
+  });
+  $("#album-book .album-block.left").style.display = flipped > 0 ? "" : "none";
+  $("#album-book .album-block.right").style.display = flipped < leaves ? "" : "none";
+  updateAlbumBook();
+  $("#album-range").value = flipped;
+  $("#album-prev").disabled = flipped === 0;
+  $("#album-next").disabled = flipped === leaves;
+  const numbers = [album.pages[flipped * 2 - 1], album.pages[flipped * 2]].filter((p) => p?.kind === "pockets").map((p) => p.number);
+  const total = album.pages.filter((p) => p.kind === "pockets").length;
+  $("#album-pos").textContent = numbers.length ? `Pág. ${numbers.join("–")} de ${total}` : flipped === 0 ? "Portada" : flipped === leaves ? "Contraportada" : "Interior";
+}
+
+function albumStep(dir) {
+  const narrow = albumNarrow.matches;
+  if (dir > 0) {
+    if (narrow && album.side === "left" && album.flipped < album.leaves) album.side = "right";
+    else if (album.flipped < album.leaves) { album.flipped++; album.side = "left"; }
+  } else if (narrow && album.side === "right" && album.flipped > 0) album.side = "left";
+  else if (album.flipped > 0) { album.flipped--; album.side = album.flipped === 0 ? "right" : narrow ? "right" : album.side; }
+  updateAlbum();
+}
+
+// Hoja que se mueve al pasar en esa dirección; null si en móvil basta con desplazar el libro
+function albumDragLeaf(dir) {
+  if (albumNarrow.matches && (dir > 0 ? album.side !== "right" : album.side !== "left")) return null;
+  const i = dir > 0 ? album.flipped : album.flipped - 1;
+  return i >= 0 && i < album.leaves ? $(`#album-book .album-leaf[data-leaf="${i}"]`) : null;
+}
+
+function setupAlbum() {
+  const stage = $("#album-stage");
+  const openAlbum = () => {
+    album.owner = state.me.is_admin ? "__group" : state.me.id;
+    album.set = state.set;
+    album.flipped = 0;
+    album.side = "right";
+    album.rx = albumNarrow.matches ? 4 : 10;
+    album.ry = 0;
+    $("#album-owner").innerHTML =
+      (state.me.is_admin ? "" : `<option value="${esc(state.me.id)}">Mi álbum</option>`) +
+      `<option value="__group">Entre todos</option>` +
+      collectors().filter((u) => u.id !== state.me.id).map((u) => `<option value="${esc(u.id)}">Álbum de ${esc(u.name)}</option>`).join("");
+    $("#album-set").innerHTML = `<option value="all">Todas las colecciones</option>` + state.sets.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("");
+    $("#album-owner").value = album.owner;
+    $("#album-set").value = album.set;
+    $("#dlg-album").showModal();
+    buildAlbum();
+  };
+  $("#btn-album").addEventListener("click", openAlbum);
+  $("#album-owner").addEventListener("change", (e) => { album.owner = e.target.value; buildAlbum(); });
+  $("#album-set").addEventListener("change", (e) => { album.set = e.target.value; album.flipped = 0; album.side = "right"; buildAlbum(); });
+  $("#album-prev").addEventListener("click", () => albumStep(-1));
+  $("#album-next").addEventListener("click", () => albumStep(1));
+  $("#album-range").addEventListener("input", (e) => {
+    album.flipped = Number(e.target.value);
+    album.side = album.flipped === 0 ? "right" : album.flipped === album.leaves ? "left" : albumNarrow.matches ? "right" : album.side;
+    updateAlbum();
+  });
+  $("#dlg-album").addEventListener("keydown", (e) => {
+    if (/^(SELECT|INPUT)$/.test(e.target.tagName) || $("#dlg-card").open) return;
+    if (e.key === "ArrowRight") albumStep(1);
+    else if (e.key === "ArrowLeft") albumStep(-1);
+  });
+  albumNarrow.addEventListener("change", () => { if ($("#dlg-album").open) updateAlbum(); });
+
+  stage.addEventListener("dblclick", () => {
+    album.rx = albumNarrow.matches ? 4 : 10;
+    album.ry = 0;
+    updateAlbumBook();
+  });
+  stage.addEventListener("pointerdown", (e) => {
+    if (e.button) return;
+    album.drag = { x: e.clientX, y: e.clientY, onPage: !!e.target.closest(".album-face"), mode: null, rx: album.rx, ry: album.ry, t: 0 };
+  });
+  stage.addEventListener("pointermove", (e) => {
+    const d = album.drag;
+    if (!d) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    if (!d.mode) {
+      if (Math.hypot(dx, dy) < 8) return; // por debajo de esto es un clic en la carta
+      stage.setPointerCapture(e.pointerId);
+      stage.classList.add("grabbing");
+      d.mode = d.onPage && Math.abs(dx) > Math.abs(dy) ? "flip" : "orbit";
+      if (d.mode === "flip") {
+        d.dir = dx < 0 ? 1 : -1;
+        d.leaf = albumDragLeaf(d.dir);
+        d.leaf?.classList.add("dragging");
+      } else $("#album-book").classList.add("orbiting");
+    }
+    if (d.mode === "orbit") {
+      album.ry = Math.max(-40, Math.min(40, d.ry + dx * 0.25));
+      album.rx = Math.max(-25, Math.min(40, d.rx - dy * 0.25));
+      updateAlbumBook();
+    } else {
+      const width = $("#album-book").offsetWidth / 2;
+      d.t = Math.max(0, Math.min(1, (-dx * d.dir) / width));
+      if (d.leaf) d.leaf.style.transform = `rotateY(${d.dir > 0 ? -180 * d.t : -180 + 180 * d.t}deg) translateZ(1px)`;
+    }
+  });
+  const endDrag = (e) => {
+    const d = album.drag;
+    album.drag = null;
+    if (!d?.mode) return;
+    stage.classList.remove("grabbing");
+    $("#album-book").classList.remove("orbiting");
+    if (d.mode !== "flip") return;
+    if (e.type !== "pointercancel" && d.t > 0.25) albumStep(d.dir);
+    else updateAlbum();
+  };
+  stage.addEventListener("pointerup", endDrag);
+  stage.addEventListener("pointercancel", endDrag);
 }
 
 function openAvatarPicker() {
@@ -461,6 +709,10 @@ async function memberAction(e) {
 function setupUI() {
   $("#btn-members").addEventListener("click", () => { renderMemberList(); $("#m-error").hidden = true; $("#dlg-members").showModal(); });
   $("#form-member").addEventListener("submit", memberAction);
+  setupAlbum();
+  $("#f-price-metric").addEventListener("change", (e) => { state.priceMetric = e.target.value; render(); });
+  $("#f-price-min").addEventListener("input", (e) => { state.priceMin = e.target.value; render(); });
+  $("#f-price-max").addEventListener("input", (e) => { state.priceMax = e.target.value; render(); });
   $("#me-avatar").addEventListener("click", openAvatarPicker);
   $("#avatar-grid").addEventListener("click", (e) => {
     const b = e.target.closest("[data-avatar]");
