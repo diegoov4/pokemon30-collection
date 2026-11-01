@@ -6,6 +6,7 @@ const state = {
   sets: [],
   cards: [],
   users: [],
+  avatars: [],
   owned: new Map(), // cardId -> Map(userId -> qty)
   view: localGet("view") || "grid",
   set: localGet("set") || "all",
@@ -48,6 +49,7 @@ async function load() {
   state.sets = data.sets;
   state.cards = data.cards;
   state.users = data.users;
+  state.avatars = data.avatars;
   state.owned = new Map();
   for (const [u, c, q] of data.owned) {
     if (!state.owned.has(c)) state.owned.set(c, new Map());
@@ -98,8 +100,13 @@ async function login(e) {
 // ------------------------------------------------------------- helpers
 
 function avatar(u, cls = "") {
-  const inner = esc((u.name || "?").trim().charAt(0).toUpperCase());
+  const inner = u.avatar ? `<img src="/avatars/${Number(u.avatar)}.png" alt="">` : esc((u.name || "?").trim().charAt(0).toUpperCase());
   return `<span class="avatar ${cls}" style="--c:${esc(u.color)}" title="${esc(u.name)}">${inner}</span>`;
+}
+
+// El administrador solo gestiona: no colecciona ni cuenta en las estadísticas
+function collectors() {
+  return state.users.filter((u) => !u.is_admin);
 }
 
 // Todas las imágenes salen de la copia propia en R2 (el Worker la busca y guarda la primera vez)
@@ -193,9 +200,10 @@ function renderSummary() {
   const anyone = scope.filter((c) => state.owned.get(c.id)?.size).length;
   $("#group-count").textContent = `${anyone} / ${total}`;
   $("#group-bar").style.width = total ? `${(anyone / total) * 100}%` : "0";
-  $("#group-sub").textContent = `${total ? Math.round((anyone / total) * 100) : 0}% conseguido por al menos uno · ${state.users.length} coleccionista${state.users.length === 1 ? "" : "s"}`;
+  const people = collectors();
+  $("#group-sub").textContent = `${total ? Math.round((anyone / total) * 100) : 0}% conseguido por al menos uno · ${people.length} coleccionista${people.length === 1 ? "" : "s"}`;
 
-  $("#members").innerHTML = state.users
+  $("#members").innerHTML = people
     .map((u) => {
       let have = 0;
       let copies = 0;
@@ -233,14 +241,16 @@ function renderFilters() {
 
   const opts = [
     ["all", "Todas las cartas"],
-    ["missing", "Me faltan"],
-    ["have", "Las tengo"],
-    ["dupes", "Mis repetidas"],
-    ["trade", "Las tiene alguien y yo no"],
+    ...(state.me.is_admin ? [] : [
+      ["missing", "Me faltan"],
+      ["have", "Las tengo"],
+      ["dupes", "Mis repetidas"],
+      ["trade", "Las tiene alguien y yo no"],
+    ]),
     ["nobody", "No las tiene nadie"],
     ["noimage", "Sin imagen (súbela)"],
   ];
-  for (const u of state.users) {
+  for (const u of collectors()) {
     if (u.id === state.me.id) continue;
     opts.push([`has:${u.id}`, `Las tiene ${u.name}`], [`lacks:${u.id}`, `Le faltan a ${u.name}`]);
   }
@@ -276,18 +286,18 @@ function renderGrid(list) {
         <button class="art ${c.image_status === "missing" || brokenImages.has(c.id) ? "noimg" : ""}" data-open="${esc(c.id)}" aria-label="Ver ${esc(c.name)}">${artHtml(c)}<span class="numtag">${esc(displayNumber(c))}</span></button>
         <div class="meta"><strong>${esc(c.name)}</strong><span class="rar" data-r="${esc(c.rarity)}">${esc(c.rarity || "—")}</span></div>
         <div class="owners">${ownersHtml(c)}</div>
-        <div class="stepper">
+        ${me.is_admin ? "" : `<div class="stepper">
           <button data-dec="${esc(c.id)}" aria-label="Quitar una" ${mine ? "" : "disabled style=visibility:hidden"}>−</button>
           <span>${mine ? `Tengo <b>${mine}</b>` : "No la tengo"}</span>
           <button class="add" data-inc="${esc(c.id)}" aria-label="Añadir una">+</button>
-        </div>
+        </div>`}
       </article>`;
     })
     .join("");
 }
 
 function renderTable(list) {
-  const users = state.users;
+  const users = collectors();
   const head = `<thead><tr><th>Nº</th><th>Carta</th><th>Rareza</th>${users
     .map((u) => `<th class="u">${avatar(u)}${esc(u.name.split(" ")[0])}</th>`)
     .join("")}</tr></thead>`;
@@ -335,9 +345,9 @@ function openCard(id) {
             ? state.users.filter((u) => owners.has(u.id)).map((u) => `<div>${avatar(u)} ${esc(u.name)} · ${owners.get(u.id)} copia${owners.get(u.id) > 1 ? "s" : ""}</div>`).join("")
             : `<span class="none" style="color:var(--muted)">Nadie todavía</span>`
         }</div>
-        <div class="stepper" style="max-width:220px">
+        ${state.me.is_admin ? "" : `<div class="stepper" style="max-width:220px">
           <button data-dec="${esc(c.id)}">−</button><span>Tengo <b>${qty(c.id, state.me.id)}</b></span><button class="add" data-inc="${esc(c.id)}">+</button>
-        </div>
+        </div>`}
         <button class="btn ghost small" data-upload="${esc(c.id)}" style="margin-top:14px">📷 Cambiar imagen</button>
       </div>
     </div>`;
@@ -390,6 +400,30 @@ async function uploadImage(cardId, file) {
   }
 }
 
+function openAvatarPicker() {
+  const current = state.me.avatar;
+  const initial = esc(state.me.name.trim().charAt(0).toUpperCase());
+  $("#avatar-grid").innerHTML =
+    `<button type="button" class="${current ? "" : "on"}" data-avatar=""><span class="none-avatar">${initial}</span>Sin avatar</button>` +
+    state.avatars
+      .map((a) => `<button type="button" class="${a.id === current ? "on" : ""}" data-avatar="${a.id}"><img src="/avatars/${a.id}.png" alt="" loading="lazy">${esc(a.name)}</button>`)
+      .join("");
+  $("#dlg-avatar").showModal();
+}
+
+async function chooseAvatar(value) {
+  try {
+    const { avatar } = await api("/api/me/avatar", { method: "PUT", body: JSON.stringify({ avatar: value ? Number(value) : null }) });
+    await load();
+    render();
+    if ($("#dlg-members").open) renderMemberList();
+    $("#dlg-avatar").close();
+    toast(avatar ? "Avatar cambiado" : "Avatar quitado");
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
 function renderMemberList() {
   const admin = !!state.me.is_admin;
   $("#new-member").hidden = !admin;
@@ -427,6 +461,11 @@ async function memberAction(e) {
 function setupUI() {
   $("#btn-members").addEventListener("click", () => { renderMemberList(); $("#m-error").hidden = true; $("#dlg-members").showModal(); });
   $("#form-member").addEventListener("submit", memberAction);
+  $("#me-avatar").addEventListener("click", openAvatarPicker);
+  $("#avatar-grid").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-avatar]");
+    if (b) chooseAvatar(b.dataset.avatar);
+  });
   $("#member-list").addEventListener("click", async (e) => {
     const del = e.target.closest("[data-del-user]");
     if (!del) return;

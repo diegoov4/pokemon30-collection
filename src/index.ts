@@ -1,3 +1,5 @@
+import AVATARS from "../data/avatars.json";
+
 export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
@@ -10,6 +12,7 @@ interface User {
   id: string;
   name: string;
   color: string | null;
+  avatar: number | null;
   is_admin: number;
 }
 
@@ -132,7 +135,7 @@ async function currentUser(req: Request, env: Env): Promise<User | null> {
   const sid = getCookie(req, SESSION_COOKIE);
   if (!sid) return null;
   return env.DB.prepare(
-    `SELECT u.id, u.name, u.color, u.is_admin FROM sessions s JOIN users u ON u.id = s.user_id
+    `SELECT u.id, u.name, u.color, u.avatar, u.is_admin FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.id = ? AND s.expires_at > unixepoch()`,
   )
     .bind(sid)
@@ -161,11 +164,12 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
       env.DB.prepare(
         "SELECT id, set_id, number, name, rarity, note, source, image_status, coalesce(image_checked_at, 0) AS img_v FROM cards ORDER BY set_id, sort_key, number",
       ),
-      env.DB.prepare("SELECT id, name, color, is_admin FROM users ORDER BY is_admin DESC, created_at"),
-      env.DB.prepare("SELECT user_id, card_id, qty FROM collection"),
+      env.DB.prepare("SELECT id, name, color, avatar, is_admin FROM users ORDER BY is_admin DESC, created_at"),
+      env.DB.prepare("SELECT c.user_id, c.card_id, c.qty FROM collection c JOIN users u ON u.id = c.user_id WHERE u.is_admin = 0"),
     ]);
     return json({
       me: user,
+      avatars: AVATARS,
       sets: sets.results,
       cards: cards.results,
       users: users.results,
@@ -175,6 +179,7 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
 
   const m = path.match(/^\/api\/collection\/([^/]+)$/);
   if (m && req.method === "PUT") {
+    if (user.is_admin) throw new HttpError(403, "El administrador no tiene colección");
     const cardId = decodeURIComponent(m[1]);
     const { qty } = (await req.json()) as { qty: number };
     const n = Math.max(0, Math.min(99, Math.floor(Number(qty) || 0)));
@@ -264,7 +269,7 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
     const res = await env.DB.prepare(
       "INSERT INTO users (id, name, pass_salt, pass_hash, color) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
     )
-      .bind(id, String(body.name || id).trim().slice(0, 40), salt, await hashPassword(password, salt), COLORS[n % COLORS.length])
+      .bind(id, capitalizeName(String(body.name || id)).slice(0, 40), salt, await hashPassword(password, salt), COLORS[n % COLORS.length])
       .run();
     if (!res.meta.changes) throw new HttpError(409, "Ese usuario ya existe");
     return json({ ok: true, id });
@@ -292,11 +297,26 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
     return json({ ok: true });
   }
 
+  // Avatar propio: solo de la lista cerrada, o null para volver a la inicial del nombre
+  if (path === "/api/me/avatar" && req.method === "PUT") {
+    const { avatar } = (await req.json()) as { avatar?: number | null };
+    if (avatar != null && !AVATARS.some((a) => a.id === avatar)) throw new HttpError(400, "Ese avatar no está en la lista");
+    await env.DB.prepare("UPDATE users SET avatar = ? WHERE id = ?").bind(avatar ?? null, user.id).run();
+    return json({ ok: true, avatar: avatar ?? null });
+  }
+
   if (path === "/api/sync" && req.method === "POST") {
     return json(await syncFromTcgdex(env));
   }
 
   throw new HttpError(404, "No encontrado");
+}
+
+function capitalizeName(name: string): string {
+  return name
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/(^|[\s-])(\p{L})/gu, (_, sep: string, letter: string) => sep + letter.toLocaleUpperCase("es"));
 }
 
 function sortKey(number: string): number {

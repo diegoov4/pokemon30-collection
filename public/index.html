@@ -40,7 +40,7 @@
         <button class="btn ghost" id="btn-add" title="Dar de alta una carta nueva (promos, productos futuros…)">＋ Añadir carta</button>
         <button class="btn ghost" id="btn-sync" title="Buscar cartas nuevas en TCGdex">⟳ Sincronizar</button>
         <button class="btn ghost" id="btn-members">Miembros</button>
-        <span id="me-avatar"></span>
+        <button class="me-avatar" id="me-avatar" title="Cambiar mi avatar" aria-label="Cambiar mi avatar"></button>
         <button class="btn ghost small" id="btn-logout">Salir</button>
       </div>
     </header>
@@ -134,6 +134,12 @@
       <p class="form-error" id="m-error" hidden></p>
       <menu><button value="cancel" class="btn ghost" formnovalidate>Cerrar</button></menu>
     </form>
+  </dialog>
+
+  <dialog id="dlg-avatar">
+    <h2>Elige tu avatar</h2>
+    <div class="avatar-grid" id="avatar-grid"></div>
+    <menu><button type="button" class="btn ghost" data-close>Cerrar</button></menu>
   </dialog>
 
   <dialog id="dlg-card" class="card-dialog"></dialog>

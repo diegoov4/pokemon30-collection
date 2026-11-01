@@ -2,7 +2,9 @@
 
 App colaborativa en un **Cloudflare Worker** para llevar el control de las cartas oficiales en español del **30.º aniversario de Pokémon**. Cada persona entra con su **usuario y contraseña**, marca las cartas que tiene (y cuántas copias) y todos ven la colección de todos en una **vista única**.
 
-**Acceso inicial: usuario `admin`, contraseña `1234`.** Cámbiala nada más entrar (Miembros → Cambiar mi contraseña). Desde Miembros, el admin crea un usuario para cada persona del grupo.
+**Acceso inicial: usuario `admin`, contraseña `1234`.** Cámbiala nada más entrar (Miembros → Cambiar mi contraseña). Desde Miembros, el admin crea un usuario para cada persona del grupo. El admin solo gestiona: no colecciona cartas ni aparece en las estadísticas.
+
+**Avatares:** cada persona elige el suyo tocando su avatar arriba a la derecha, de una lista cerrada de 50 Pokémon populares (`data/avatars.json`, sprites de [PokeAPI](https://github.com/PokeAPI/sprites) en `public/avatars/`).
 
 - **Cartas incluidas** (209 en total):
   - **Celebración 30.º Aniversario** (16/09/2026): 128 cartas numeradas, 33 secretas (ilustración, ilustración especial, futuristas de YOSHIROTTEN) y los tres Mew RGB.
