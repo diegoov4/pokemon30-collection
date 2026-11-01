@@ -40,7 +40,9 @@
         <button class="btn ghost" id="btn-add" title="Dar de alta una carta nueva (promos, productos futuros…)">＋ Añadir carta</button>
         <button class="btn ghost" id="btn-album" title="Ver las cartas como un álbum real">Vista de álbum</button>
         <button class="btn ghost" id="btn-sync" title="Buscar cartas nuevas en TCGdex">⟳ Sincronizar</button>
-        <button class="btn ghost" id="btn-members">Miembros</button>
+        <button class="ball-btn" id="btn-members" title="Mi menú" aria-label="Abrir mi menú">
+          <span class="ball"><i class="ball-core"></i><i class="ball-bottom"></i><i class="ball-top"></i></span>
+        </button>
         <button class="me-avatar" id="me-avatar" title="Cambiar mi avatar" aria-label="Cambiar mi avatar"></button>
         <button class="btn ghost small" id="btn-logout">Salir</button>
       </div>
@@ -121,8 +123,11 @@
 
   <dialog id="dlg-members">
     <form method="dialog" id="form-member">
-      <h2>Miembros</h2>
-      <ul class="member-list" id="member-list"></ul>
+      <h2 id="menu-title">Mi menú</h2>
+      <fieldset>
+        <legend id="members-legend">Miembros</legend>
+        <ul class="member-list" id="member-list"></ul>
+      </fieldset>
       <fieldset id="new-member">
         <legend>Nuevo usuario</legend>
         <div class="row">
@@ -139,6 +144,17 @@
           <label>Nueva <input id="p-new" type="password" autocomplete="new-password" /></label>
         </div>
         <button value="password" class="btn ghost">Cambiar contraseña</button>
+      </fieldset>
+      <fieldset>
+        <legend>Precios de las cartas</legend>
+        <label class="pref-check"><input type="checkbox" id="pref-hide" /> Ocultar el precio de las cartas</label>
+        <div class="pref-row" id="pref-metric-row">
+          <span>Precio predeterminado</span>
+          <div class="seg" role="group" aria-label="Precio predeterminado">
+            <button type="button" data-metric="cm_trend">Trend</button>
+            <button type="button" data-metric="cm_mid">Mid</button>
+          </div>
+        </div>
       </fieldset>
       <p class="form-error" id="m-error" hidden></p>
       <menu><button value="cancel" class="btn ghost" formnovalidate>Cerrar</button></menu>

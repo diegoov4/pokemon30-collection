@@ -145,9 +145,13 @@ function qty(cardId, userId) {
 const euros = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
 const price = (v) => (v == null ? "—" : euros.format(v));
 
-function pricesHtml(c) {
-  if (c.cm_trend == null && c.cm_mid == null) return `<div class="prices none"><span>Sin precio en Cardmarket</span></div>`;
-  return `<div class="prices"><span>Trend <b>${price(c.cm_trend)}</b></span><span>Mid <b>${price(c.cm_mid)}</b></span></div>`;
+const metricName = (m) => (m === "cm_mid" ? "Mid" : "Trend");
+
+// Precio elegido por cada usuario, en una esquina de la carta
+function priceTag(c) {
+  const v = c[state.me.price_metric];
+  if (state.me.hide_prices || v == null) return "";
+  return `<span class="pricetag" title="${metricName(state.me.price_metric)} en Cardmarket">${price(v)}</span>`;
 }
 
 function cardsInScope() {
@@ -160,7 +164,7 @@ function filtered() {
   return cardsInScope().filter((c) => {
     if (state.rarity && c.rarity !== state.rarity) return false;
     if (q && !`${c.name} ${c.number} ${c.note || ""} ${c.rarity || ""}`.toLowerCase().includes(q)) return false;
-    if (state.priceMin !== "" || state.priceMax !== "") {
+    if (!state.me.hide_prices && (state.priceMin !== "" || state.priceMax !== "")) {
       const p = c[state.priceMetric];
       if (p == null) return false;
       if (state.priceMin !== "" && p < Number(state.priceMin)) return false;
@@ -301,9 +305,8 @@ function renderGrid(list) {
     .map((c) => {
       const mine = qty(c.id, me.id);
       return `<article class="card ${mine ? "mine" : ""}" style="--c:${esc(me.color)}" data-card="${esc(c.id)}">
-        <button class="art ${c.image_status === "missing" || brokenImages.has(c.id) ? "noimg" : ""}" data-open="${esc(c.id)}" aria-label="Ver ${esc(c.name)}">${artHtml(c)}<span class="numtag">${esc(displayNumber(c))}</span></button>
+        <button class="art ${c.image_status === "missing" || brokenImages.has(c.id) ? "noimg" : ""}" data-open="${esc(c.id)}" aria-label="Ver ${esc(c.name)}">${artHtml(c)}<span class="numtag">${esc(displayNumber(c))}</span>${priceTag(c)}</button>
         <div class="meta"><strong>${esc(c.name)}</strong><span class="rar" data-r="${esc(c.rarity)}">${esc(c.rarity || "—")}</span></div>
-        ${pricesHtml(c)}
         <div class="owners">${ownersHtml(c)}</div>
         ${me.is_admin ? "" : `<div class="stepper">
           <button data-dec="${esc(c.id)}" aria-label="Quitar una" ${mine ? "" : "disabled style=visibility:hidden"}>−</button>
@@ -317,7 +320,8 @@ function renderGrid(list) {
 
 function renderTable(list) {
   const users = collectors();
-  const head = `<thead><tr><th>Nº</th><th>Carta</th><th>Rareza</th><th>Trend</th><th>Mid</th>${users
+  const showPrices = !state.me.hide_prices;
+  const head = `<thead><tr><th>Nº</th><th>Carta</th><th>Rareza</th>${showPrices ? "<th>Trend</th><th>Mid</th>" : ""}${users
     .map((u) => `<th class="u">${avatar(u)}${esc(u.name.split(" ")[0])}</th>`)
     .join("")}</tr></thead>`;
   const body = list
@@ -331,10 +335,10 @@ function renderTable(list) {
           }</td>`;
         })
         .join("");
-      return `<tr><td class="n">${esc(displayNumber(c))}</td><td><a href="#" data-open="${esc(c.id)}">${esc(c.name)}</a></td><td><span class="rar" data-r="${esc(c.rarity)}">${esc(c.rarity || "—")}</span></td><td class="price">${price(c.cm_trend)}</td><td class="price">${price(c.cm_mid)}</td>${cells}</tr>`;
+      return `<tr><td class="n">${esc(displayNumber(c))}</td><td><a href="#" data-open="${esc(c.id)}">${esc(c.name)}</a></td><td><span class="rar" data-r="${esc(c.rarity)}">${esc(c.rarity || "—")}</span></td>${showPrices ? `<td class="price">${price(c.cm_trend)}</td><td class="price">${price(c.cm_mid)}</td>` : ""}${cells}</tr>`;
     })
     .join("");
-  const foot = `<tfoot><tr><td colspan="5" style="text-align:left">Total en esta vista</td>${users
+  const foot = `<tfoot><tr><td colspan="${showPrices ? 5 : 3}" style="text-align:left">Total en esta vista</td>${users
     .map((u) => `<td>${list.filter((c) => qty(c.id, u.id)).length}</td>`)
     .join("")}</tr></tfoot>`;
   $("#table").innerHTML = head + `<tbody>${body}</tbody>` + foot;
@@ -348,7 +352,7 @@ function openCard(id) {
   const dlg = $("#dlg-card");
   dlg.innerHTML = `<button class="btn ghost small close" data-close>✕</button>
     <div class="cd">
-      <div class="art ${c.image_status === "missing" || brokenImages.has(c.id) ? "noimg" : ""}">${artHtml(c)}</div>
+      <div class="art ${c.image_status === "missing" || brokenImages.has(c.id) ? "noimg" : ""}">${artHtml(c)}${priceTag(c)}</div>
       <div>
         <h2>${esc(c.name)}</h2>
         <span class="rar" data-r="${esc(c.rarity)}">${esc(c.rarity || "—")}</span>
@@ -357,9 +361,9 @@ function openCard(id) {
           <dt>Número</dt><dd>${esc(displayNumber(c))}</dd>
           ${c.note ? `<dt>Detalles</dt><dd>${esc(c.note)}</dd>` : ""}
           ${c.source === "manual" ? `<dt>Origen</dt><dd>Añadida por el grupo</dd>` : ""}
-          <dt>Trend</dt><dd>${price(c.cm_trend)}</dd>
+          ${state.me.hide_prices ? "" : `<dt>Trend</dt><dd>${price(c.cm_trend)}</dd>
           <dt>Mid</dt><dd>${price(c.cm_mid)}</dd>
-          ${c.cm_updated ? `<dt>Cardmarket</dt><dd>Actualizado el ${esc(new Date(c.cm_updated).toLocaleDateString("es-ES"))}</dd>` : ""}
+          ${c.cm_updated ? `<dt>Cardmarket</dt><dd>Actualizado el ${esc(new Date(c.cm_updated).toLocaleDateString("es-ES"))}</dd>` : ""}`}
         </dl>
         <strong>Quién la tiene</strong>
         <div class="who">${
@@ -458,10 +462,10 @@ function albumOwnerName() {
 function pocketHtml(c) {
   const n = albumQty(c.id);
   const open = `data-open="${esc(c.id)}"`;
-  if (!n) return `<button type="button" class="slot empty" ${open} aria-label="Falta ${esc(c.name)}"><span class="no">${esc(displayNumber(c))}</span><span class="nm">${esc(c.name)}</span></button>`;
+  if (!n) return `<button type="button" class="slot empty" ${open} aria-label="Falta ${esc(c.name)}"><span class="no">${esc(displayNumber(c))}</span><span class="nm">${esc(c.name)}</span>${priceTag(c)}</button>`;
   const img = c.image_status === "missing" || brokenImages.has(c.id) ? "" : `<img src="${esc(imgUrl(c))}" alt="" data-id="${esc(c.id)}" onerror="p30ImgError(this)">`;
   const copies = n > 1 && album.owner !== "__group" ? `<sup>×${n}</sup>` : "";
-  return `<button type="button" class="slot has" ${open} aria-label="${esc(c.name)}"><span class="nm">${esc(c.name)}</span>${img}${copies}</button>`;
+  return `<button type="button" class="slot has" ${open} aria-label="${esc(c.name)}"><span class="nm">${esc(c.name)}</span>${img}${copies}${priceTag(c)}</button>`;
 }
 
 function albumPageHtml(page) {
@@ -772,11 +776,23 @@ async function chooseAvatar(value) {
   }
 }
 
+// Copias × precio actual; las cartas sin precio no suman
+function memberValue(u) {
+  const metric = state.me.price_metric;
+  return state.cards.reduce((sum, c) => sum + qty(c.id, u.id) * (c[metric] || 0), 0);
+}
+
 function renderMemberList() {
   const admin = !!state.me.is_admin;
   $("#new-member").hidden = !admin;
+  $("#menu-title").textContent = `Menú de ${state.me.name}`;
+  $("#members-legend").textContent = `Miembros · valor de sus cartas (${metricName(state.me.price_metric)})`;
+  $("#pref-hide").checked = !!state.me.hide_prices;
+  $("#pref-metric-row").classList.toggle("off", !!state.me.hide_prices);
+  document.querySelectorAll("[data-metric]").forEach((b) => b.classList.toggle("on", b.dataset.metric === state.me.price_metric));
   $("#member-list").innerHTML = state.users
     .map((u) => `<li>${avatar(u)} <span><b>${esc(u.name)}</b> <small>@${esc(u.id)}${u.is_admin ? " · admin" : ""}</small></span>
+      ${u.is_admin ? "" : `<b class="member-value">${euros.format(memberValue(u))}</b>`}
       ${admin && !u.is_admin ? `<button type="button" class="btn ghost small" data-del-user="${esc(u.id)}">Quitar</button>` : ""}</li>`)
     .join("");
 }
@@ -806,8 +822,69 @@ async function memberAction(e) {
   }
 }
 
+function applyPricePrefs() {
+  state.priceMetric = state.me.price_metric;
+  $("#f-price-metric").value = state.priceMetric;
+  $(".price-filter").hidden = !!state.me.hide_prices;
+}
+
+// La pokéball sale despedida al centro, se abre con un destello como en la serie y de la luz sale el menú
+let menuOpening = false;
+function openMenu() {
+  if (menuOpening) return;
+  const show = () => {
+    renderMemberList();
+    $("#m-error").hidden = true;
+    $("#dlg-members").showModal();
+  };
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return show();
+  menuOpening = true;
+  const r = $("#btn-members").getBoundingClientRect();
+  const x = r.left + r.width / 2;
+  const y = r.top + r.height / 2;
+  const fx = document.createElement("div");
+  fx.className = "ball-fx";
+  fx.style.left = `${x}px`;
+  fx.style.top = `${y}px`;
+  fx.style.setProperty("--dx", `${window.innerWidth / 2 - x}px`);
+  fx.style.setProperty("--dy", `${window.innerHeight / 2 - y}px`);
+  fx.innerHTML = $("#btn-members").innerHTML;
+  const flash = document.createElement("div");
+  flash.className = "ball-flash";
+  document.body.append(flash, fx);
+  setTimeout(() => {
+    show();
+    fx.remove();
+    menuOpening = false;
+  }, 600);
+  setTimeout(() => flash.remove(), 950);
+}
+
+async function savePricePrefs(change) {
+  const before = { price_metric: state.me.price_metric, hide_prices: state.me.hide_prices };
+  const apply = (prefs) => {
+    Object.assign(state.me, prefs);
+    applyPricePrefs();
+    render();
+    renderMemberList();
+  };
+  apply({ ...change, hide_prices: change.hide_prices === undefined ? before.hide_prices : change.hide_prices ? 1 : 0 });
+  try {
+    await api("/api/me/prefs", { method: "PUT", body: JSON.stringify({ price_metric: state.me.price_metric, hide_prices: !!state.me.hide_prices }) });
+  } catch (e) {
+    apply(before);
+    toast(`No se pudo guardar: ${e.message}`);
+  }
+}
+
 function setupUI() {
-  $("#btn-members").addEventListener("click", () => { renderMemberList(); $("#m-error").hidden = true; $("#dlg-members").showModal(); });
+  applyPricePrefs();
+  $("#btn-members").addEventListener("click", openMenu);
+  $("#pref-hide").addEventListener("change", (e) => savePricePrefs({ hide_prices: e.target.checked }));
+  $("#pref-metric-row").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-metric]");
+    if (b) savePricePrefs({ price_metric: b.dataset.metric });
+  });
   $("#form-member").addEventListener("submit", memberAction);
   setupAlbum();
   $("#f-price-metric").addEventListener("change", (e) => { state.priceMetric = e.target.value; render(); });

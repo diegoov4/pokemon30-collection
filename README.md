@@ -26,7 +26,7 @@ El botón **Vista de álbum** abre un álbum en 3D con la portada del binder del
 
 ## Precios de Cardmarket
 
-Cada carta muestra dos precios de Cardmarket en euros, que salen de la API de TCGdex y se pueden filtrar por rango:
+Cada carta muestra en una esquina su precio de Cardmarket en euros. Cada persona elige en su menú (la pokéball de arriba) si ve Trend, que es el predeterminado, o Mid, y también puede ocultar los precios. Ese menú muestra además el valor de las cartas de cada miembro: copias × precio actual, sin descontar lo que costaron, porque la app no guarda precios de compra. Los precios salen de la API de TCGdex y se pueden filtrar por rango:
 
 - **Trend**: `trend` de Cardmarket.
 - **Mid**: `avg` de Cardmarket, el precio medio de venta. Cardmarket no tiene ningún campo llamado «mid».

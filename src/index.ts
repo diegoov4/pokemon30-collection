@@ -14,6 +14,8 @@ interface User {
   color: string | null;
   avatar: number | null;
   is_admin: number;
+  price_metric: string;
+  hide_prices: number;
 }
 
 const SESSION_COOKIE = "p30_sid";
@@ -136,7 +138,7 @@ async function currentUser(req: Request, env: Env): Promise<User | null> {
   const sid = getCookie(req, SESSION_COOKIE);
   if (!sid) return null;
   return env.DB.prepare(
-    `SELECT u.id, u.name, u.color, u.avatar, u.is_admin FROM sessions s JOIN users u ON u.id = s.user_id
+    `SELECT u.id, u.name, u.color, u.avatar, u.is_admin, u.price_metric, u.hide_prices FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.id = ? AND s.expires_at > unixepoch()`,
   )
     .bind(sid)
@@ -304,6 +306,13 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
     if (avatar != null && !AVATARS.some((a) => a.id === avatar)) throw new HttpError(400, "Ese avatar no está en la lista");
     await env.DB.prepare("UPDATE users SET avatar = ? WHERE id = ?").bind(avatar ?? null, user.id).run();
     return json({ ok: true, avatar: avatar ?? null });
+  }
+
+  if (path === "/api/me/prefs" && req.method === "PUT") {
+    const { price_metric, hide_prices } = (await req.json()) as { price_metric?: string; hide_prices?: boolean };
+    if (price_metric !== "cm_trend" && price_metric !== "cm_mid") throw new HttpError(400, "Precio predeterminado no válido");
+    await env.DB.prepare("UPDATE users SET price_metric = ?, hide_prices = ? WHERE id = ?").bind(price_metric, hide_prices ? 1 : 0, user.id).run();
+    return json({ ok: true });
   }
 
   if (path === "/api/sync" && req.method === "POST") {
