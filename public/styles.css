@@ -106,9 +106,11 @@ main { max-width: 1440px; margin: 0 auto; padding: 22px 24px 40px; }
 .avatar {
   --c: #64748b; width: 30px; height: 30px; border-radius: 50%; flex: none;
   display: inline-grid; place-items: center; font-weight: 700; font-size: 13px; color: #fff;
-  background: var(--c); box-shadow: 0 0 0 2px var(--bg); overflow: hidden; position: relative;
+  /* Fondo neutro y medio claro para que resalte cualquier Pokémon, también los oscuros; el color de cada persona queda solo en un aro fino */
+  background: radial-gradient(circle, #b4bcdc, #6a749f); overflow: hidden; position: relative;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent);
 }
-.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar img { width: 100%; height: 100%; object-fit: contain; transform: scale(1.4); }
 .avatar.lg { width: 44px; height: 44px; font-size: 18px; }
 .me-avatar { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; display: inline-grid; }
 .me-avatar:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
@@ -342,15 +344,19 @@ dialog fieldset { min-width: 0; }
 dialog .row > label, dialog input { min-width: 0; }
 
 /* ------- precios */
+/* Pegado a la esquina y translúcido: se lee pero no compite con la carta */
 .pricetag {
-  position: absolute; right: 6px; bottom: 6px; z-index: 2; padding: 4px 10px; border-radius: 10px;
-  font-size: 15px; font-weight: 800; line-height: 1.2; letter-spacing: -.01em; white-space: nowrap; color: #1a1400;
-  background: linear-gradient(135deg, #ffe680, var(--gold) 45%, var(--gold2));
-  box-shadow: 0 3px 10px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .6);
+  position: absolute; right: 0; bottom: 0; z-index: 2; padding: 2px 7px; border-radius: 8px 0 0 0;
+  font-size: 11px; font-weight: 600; line-height: 1.3; white-space: nowrap; color: rgba(255, 255, 255, .92);
+  background: rgba(10, 14, 30, .62);
 }
-.cd .pricetag { font-size: 20px; right: 10px; bottom: 10px; padding: 6px 14px; }
-.slot .pricetag { right: 3%; bottom: 3%; padding: 2px 6px; border-radius: 6px; font-size: .78em; }
-.member-value { color: var(--gold); font-weight: 700; white-space: nowrap; }
+.cd .pricetag { font-size: 13px; padding: 3px 9px; }
+.slot .pricetag { padding: 1px 5px; border-radius: 5px 0 0 0; font-size: .68em; }
+.member-value { display: inline-flex; align-items: center; gap: 4px; flex: none; color: var(--muted); font-size: 12px; font-weight: 500; white-space: nowrap; }
+.member-value .eye { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; color: var(--muted); background: none; border: 0; border-radius: 50%; cursor: pointer; }
+.member-value .eye:hover { color: var(--text); background: rgba(255, 255, 255, .08); }
+.member-value .eye:focus-visible { outline: 2px solid var(--gold); }
+.member-value .eye svg { width: 16px; height: 16px; }
 .pref-check { flex-direction: row !important; align-items: center; gap: 8px !important; color: var(--text) !important; font-size: 14px !important; cursor: pointer; }
 .pref-check input { width: 18px; height: 18px; accent-color: var(--gold); }
 .pref-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 14px; }
@@ -358,10 +364,11 @@ dialog .row > label, dialog input { min-width: 0; }
 .price-filter { display: inline-flex; gap: 6px; }
 .filters .price-filter select { flex: none; width: 92px; }
 .filters .price-filter input { flex: none; width: 86px; }
-td.price { white-space: nowrap; text-align: right; color: var(--gold); }
+td.price { white-space: nowrap; text-align: right; color: var(--muted); }
 
 /* ------- pokéball del menú */
-.ball-btn { flex: none; width: 40px; height: 40px; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; transition: transform .15s; }
+#me-avatar .avatar { width: 36px; height: 36px; }
+.ball-btn { flex: none; width: 36px; height: 36px; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; transition: transform .15s; }
 .ball-btn:hover { transform: rotate(-14deg) scale(1.08); }
 .ball-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .ball { position: relative; display: block; width: 100%; height: 100%; perspective: 120px; }

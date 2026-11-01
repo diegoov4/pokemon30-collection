@@ -782,6 +782,17 @@ function memberValue(u) {
   return state.cards.reduce((sum, c) => sum + qty(c.id, u.id) * (c[metric] || 0), 0);
 }
 
+// Valor oculto por defecto, con un ojo como en los campos de contraseña. Al volver a abrir el menú, todos ocultos otra vez.
+const revealedValues = new Set();
+const EYE = '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
+const EYE_OFF = '<path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4M6.5 6.6A17 17 0 0 0 2 12s3.6 7 10 7a10 10 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>';
+
+function memberValueHtml(u) {
+  const shown = revealedValues.has(u.id);
+  const label = `${shown ? "Ocultar" : "Ver"} el valor de ${esc(u.name)}`;
+  return `<span class="member-value"><span>${shown ? euros.format(memberValue(u)) : "•••• €"}</span><button type="button" class="eye" data-reveal="${esc(u.id)}" aria-pressed="${shown}" aria-label="${label}" title="${label}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${shown ? EYE_OFF : EYE}</svg></button></span>`;
+}
+
 function renderMemberList() {
   const admin = !!state.me.is_admin;
   $("#new-member").hidden = !admin;
@@ -792,7 +803,7 @@ function renderMemberList() {
   document.querySelectorAll("[data-metric]").forEach((b) => b.classList.toggle("on", b.dataset.metric === state.me.price_metric));
   $("#member-list").innerHTML = state.users
     .map((u) => `<li>${avatar(u)} <span><b>${esc(u.name)}</b> <small>@${esc(u.id)}${u.is_admin ? " · admin" : ""}</small></span>
-      ${u.is_admin ? "" : `<b class="member-value">${euros.format(memberValue(u))}</b>`}
+      ${u.is_admin ? "" : memberValueHtml(u)}
       ${admin && !u.is_admin ? `<button type="button" class="btn ghost small" data-del-user="${esc(u.id)}">Quitar</button>` : ""}</li>`)
     .join("");
 }
@@ -833,6 +844,7 @@ let menuOpening = false;
 function openMenu() {
   if (menuOpening) return;
   const show = () => {
+    revealedValues.clear();
     renderMemberList();
     $("#m-error").hidden = true;
     $("#dlg-members").showModal();
@@ -896,6 +908,14 @@ function setupUI() {
     if (b) chooseAvatar(b.dataset.avatar);
   });
   $("#member-list").addEventListener("click", async (e) => {
+    const eye = e.target.closest("[data-reveal]");
+    if (eye) {
+      const id = eye.dataset.reveal;
+      if (!revealedValues.delete(id)) revealedValues.add(id);
+      renderMemberList();
+      $(`#member-list [data-reveal="${CSS.escape(id)}"]`)?.focus();
+      return;
+    }
     const del = e.target.closest("[data-del-user]");
     if (!del) return;
     if (!del.dataset.confirm) {
