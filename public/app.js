@@ -482,7 +482,7 @@ async function uploadImage(cardId, file) {
 
 const ALBUM_POCKETS = 9;
 const albumNarrow = window.matchMedia("(max-width: 760px)");
-const album = { owner: "", set: "all", pages: [], leaves: 0, flipped: 0, drag: null, curl: null };
+const album = { owner: "", set: "all", pages: [], leaves: 0, flipped: 0, drag: null, curl: null, intro: null };
 
 function albumQty(cardId) {
   return album.owner === "__group" ? state.owned.get(cardId)?.size || 0 : qty(cardId, album.owner);
@@ -724,9 +724,67 @@ function albumTurn(dir) {
   if (curl) settleCurl(curl, true, false);
 }
 
+// ------------------------------------------------------------- entrada del álbum
+
+// El icono sale del botón, vuela al centro y se transforma en la portada del binder justo
+// donde aparece el álbum; al terminar se quita la copia y queda la vista de siempre.
+const ALBUM_INTRO_MS = 1150;
+
+function playAlbumIntro() {
+  const dlg = $("#dlg-album");
+  const book = $("#album-book");
+  const from = $("#btn-album").getBoundingClientRect();
+  dlg.classList.add("intro");
+  book.classList.add("still");
+  book.style.transform = "translateX(-25%) rotateX(0deg)"; // cerrado y de frente: la portada queda centrada
+  const stage = $("#album-stage").getBoundingClientRect();
+  const w = book.offsetWidth / 2;
+  const h = book.offsetHeight;
+  const to = { left: stage.left + stage.width / 2 - w / 2, top: stage.top + stage.height / 2 - h / 2, width: w, height: h };
+  const mid = Math.min(140, window.innerWidth * 0.32);
+  const cx = window.innerWidth / 2;
+  const cy = window.innerHeight / 2;
+  const frame = (r, radius, turn, tilt, offset, easing) => ({
+    left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`,
+    borderRadius: radius, transform: `perspective(900px) rotate(${turn}deg) rotateY(${tilt}deg)`, offset, easing,
+  });
+  const ball = (size) => ({ left: cx - size / 2, top: cy - size / 2, width: size, height: size });
+
+  const fx = document.createElement("div");
+  fx.className = "album-fx";
+  fx.innerHTML = '<img src="/album/icon.webp" alt=""><i class="album-fx-cover"></i>';
+  dlg.append(fx);
+  const opts = { duration: ALBUM_INTRO_MS, fill: "forwards" };
+  const anims = [
+    fx.animate([
+      frame(from, "50%", 0, 0, 0, "cubic-bezier(.4, 0, .2, 1)"),
+      frame(ball(mid), "50%", 360, 0, 0.36, "ease-out"),
+      frame(ball(mid * 1.12), "50%", 360, 0, 0.45, "ease-in"),
+      frame(ball(mid), "50%", 360, -35, 0.52, "cubic-bezier(.3, 0, .2, 1)"),
+      frame(to, "4px", 360, 0, 1),
+    ], opts),
+    fx.querySelector("img").animate([{ opacity: 1 }, { opacity: 1, offset: 0.52 }, { opacity: 0, offset: 0.8 }, { opacity: 0 }], opts),
+    fx.querySelector(".album-fx-cover").animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1, offset: 0.82 }, { opacity: 1 }], opts),
+  ];
+  album.intro = { fx, anims };
+  anims[0].finished.then(endAlbumIntro, () => {});
+}
+
+function endAlbumIntro() {
+  const intro = album.intro;
+  if (!intro) return;
+  album.intro = null;
+  intro.anims.forEach((a) => a.cancel());
+  intro.fx.remove();
+  $("#dlg-album").classList.remove("intro");
+  $("#album-book").classList.remove("still");
+  updateAlbumBook(); // vuelve suavemente a la inclinación de siempre
+}
+
 function setupAlbum() {
   const stage = $("#album-stage");
   const openAlbum = () => {
+    if (album.intro) return;
     finishCurl();
     album.owner = state.me.is_admin ? "__group" : state.me.id;
     album.set = state.set;
@@ -740,9 +798,13 @@ function setupAlbum() {
     $("#album-set").value = album.set;
     $("#dlg-album").showModal();
     buildAlbum();
+    if (!reduceMotion.matches) playAlbumIntro();
   };
   $("#btn-album").addEventListener("click", openAlbum);
-  $("#dlg-album").addEventListener("close", finishCurl);
+  $("#dlg-album").addEventListener("close", () => {
+    endAlbumIntro();
+    finishCurl();
+  });
   $("#album-owner").addEventListener("change", (e) => { album.owner = e.target.value; buildAlbum(); });
   $("#album-set").addEventListener("change", (e) => { album.set = e.target.value; album.flipped = 0; buildAlbum(); });
   $("#album-prev").addEventListener("click", () => albumTurn(-1));
