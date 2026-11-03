@@ -546,6 +546,14 @@ td.price { white-space: nowrap; text-align: right; color: var(--muted); }
   background: linear-gradient(115deg, rgba(255, 255, 255, .16), transparent 32%, transparent 68%, rgba(255, 255, 255, .07));
 }
 .slot.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 6%; border-style: dashed; background: rgba(0, 0, 0, .28); text-align: center; }
+/* Carta que falta: se ve cuál es, pero apagada y en gris */
+.slot.ghost img { filter: grayscale(1) brightness(.75) contrast(.9); opacity: .45; transition: opacity .2s, filter .2s; }
+.slot.ghost:hover img { opacity: .7; }
+.slot.ghost .nm { display: none; }
+.slot.ghost .no {
+  position: absolute; top: 3%; left: 3%; z-index: 1; padding: 0 5px; border-radius: 4px;
+  background: rgba(0, 0, 0, .6); color: #fff; font-size: .68em; opacity: .85;
+}
 .slot .no { font-weight: 700; font-size: .95em; opacity: .75; }
 .slot .nm { font-size: .72em; line-height: 1.15; opacity: .6; }
 .slot.has .nm { display: grid; place-items: center; height: 100%; padding: 6%; }

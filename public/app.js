@@ -300,6 +300,7 @@ window.p30ImgError = (el) => {
   const card = state.cards.find((c) => c.id === id);
   if (card) card.image_status = "missing";
   el.closest(".art")?.classList.add("noimg");
+  el.closest(".ghost")?.classList.remove("ghost");
   el.remove();
   renderImageWarning();
 };
@@ -697,8 +698,9 @@ function pocketHtml(c) {
   const n = albumQty(c.id);
   const open = `data-open="${esc(c.id)}"`;
   const albumUser = album.owner === "__group" ? null : album.owner;
-  if (!n) return `<button type="button" class="slot empty" ${open} aria-label="Falta ${esc(c.name)}"><span class="no">${esc(displayNumber(c))}</span><span class="nm">${esc(c.name)}</span>${priceTag(c, null)}</button>`;
   const img = c.image_status === "missing" || brokenImages.has(c.id) ? "" : `<img src="${esc(imgUrl(c))}" alt="" data-id="${esc(c.id)}" onerror="p30ImgError(this)">`;
+  // Las que faltan se ven en gris (si hay imagen); si no, el hueco con número y nombre
+  if (!n) return `<button type="button" class="slot empty${img ? " ghost" : ""}" ${open} aria-label="Falta ${esc(c.name)}"><span class="no">${esc(displayNumber(c))}</span><span class="nm">${esc(c.name)}</span>${img}${priceTag(c, null)}</button>`;
   const copies = n > 1 && album.owner !== "__group" ? `<sup>×${n}</sup>` : "";
   return `<button type="button" class="slot has" ${open} aria-label="${esc(c.name)}"><span class="nm">${esc(c.name)}</span>${img}${copies}${langTag(c, albumUser)}${priceTag(c, albumUser)}</button>`;
 }
