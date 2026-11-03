@@ -319,8 +319,8 @@ footer { text-align: center; color: #6b76a8; font-size: 12px; padding: 0 16px 32
   .grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .cd { grid-template-columns: 1fr; }
   .cd .art { max-width: 240px; margin: 0 auto; }
-  #btn-add { padding: 8px 10px; font-size: 0; }
-  #btn-add::before { content: "＋"; font-size: 16px; }
+  #btn-add { padding: 8px 10px; gap: 4px; font-size: 16px; }
+  #btn-add .add-label { display: none; }
   .members { grid-template-columns: 1fr 1fr; gap: 8px; }
   .member { padding: 12px; gap: 6px 10px; }
   .member .avatar.lg { width: 34px; height: 34px; font-size: 15px; }
@@ -378,6 +378,8 @@ td.price { white-space: nowrap; text-align: right; color: var(--muted); }
 
 /* ------- pokéball del menú */
 #me-avatar .avatar { width: 36px; height: 36px; }
+#btn-add { gap: 6px; }
+.add-card-icon { width: 13px; height: 18px; border-radius: 2px; box-shadow: 0 1px 3px rgba(0, 0, 0, .5); }
 /* Mismo tamaño que la pokéball y el avatar */
 .icon-btn { flex: none; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; overflow: hidden; background: #000; cursor: pointer; transition: transform .15s; }
 .icon-btn img { display: block; width: 100%; height: 100%; }
@@ -402,43 +404,58 @@ td.price { white-space: nowrap; text-align: right; color: var(--muted); }
   background: #fff; border: 2px solid #111; box-shadow: 0 0 0 2px #fff inset; transform: translate(-50%, -50%);
 }
 .ball-core { position: absolute; left: 12%; right: 12%; top: 12%; bottom: 40%; border-radius: 50%; background: #fff; opacity: 0; box-shadow: 0 0 22px 10px #fff; }
-.ball-fx {
-  position: fixed; z-index: 40; width: 40px; height: 40px; margin: -20px 0 0 -20px; pointer-events: none;
-  animation: ball-grow .7s ease-out forwards;
+/* Pokéball de la animación del menú: dibujada a tamaño grande, con la tapa en 3D para que se abra de verdad */
+.pb-fx {
+  --s: 120px; position: fixed; left: 0; top: 0; z-index: 40; width: var(--s); height: var(--s); pointer-events: none;
+  will-change: transform;
 }
-.ball-fx .ball-top { animation: ball-lid .7s ease-out forwards; }
-.ball-fx .ball-core { animation: ball-glow .7s ease-out forwards; }
-.ball-flash {
-  position: fixed; z-index: 39; inset: 0; pointer-events: none;
-  background: radial-gradient(circle at center, #fff 0, rgba(255, 255, 255, .95) 12%, rgba(255, 190, 200, .6) 32%, transparent 62%);
-  animation: ball-flash .95s ease-out forwards;
+.pb-fx > *, .pb-body > * { position: absolute; }
+/* El tambaleo gira este contenedor sobre su centro, sin mover la bola de su sitio */
+/* Plano a propósito: las piezas se pintan en orden (luz, bola, abertura, tapa) y cada una gira en 3D con esta perspectiva */
+.pb-body { inset: 0; perspective: 420px; }
+.pb-shadow { left: 12%; right: 12%; bottom: -14%; height: 12%; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, .45), transparent); }
+.pb-glow {
+  inset: -60%; border-radius: 50%; opacity: 0; transform: translateZ(-2px) scale(.4);
+  background: radial-gradient(closest-side, #fff 0, rgba(255, 245, 248, .95) 22%, rgba(255, 170, 190, .55) 48%, rgba(255, 120, 150, 0) 100%);
 }
-/* Sale despedida girando hacia el centro de la pantalla y allí se abre */
-@keyframes ball-grow {
-  0% { transform: translate(0, 0) scale(1) rotate(0); }
-  42%, 100% { transform: translate(var(--dx), var(--dy)) scale(3) rotate(720deg); }
+/* Rayos de luz que salen hacia arriba desde la abertura */
+.pb-rays {
+  left: -70%; width: 240%; top: -100%; height: 150%; opacity: 0; transform-origin: 50% 100%;
+  background: repeating-conic-gradient(from 270deg at 50% 100%, rgba(255, 255, 255, .7) 0 3deg, rgba(255, 210, 222, 0) 3deg 11deg);
+  -webkit-mask: radial-gradient(closest-side at 50% 100%, #000 20%, transparent); mask: radial-gradient(closest-side at 50% 100%, #000 20%, transparent);
 }
-@keyframes ball-lid {
-  0%, 42% { transform: rotateX(0); }
-  70%, 100% { transform: rotateX(72deg) translateY(-6%); }
+.pb-bottom {
+  left: 0; right: 0; bottom: 0; height: 50%; border-radius: 0 0 999px 999px; overflow: hidden;
+  background: radial-gradient(circle at 34% -10%, #fff 0, #eef0f6 35%, #c9cedd 80%, #9da4bb);
 }
-@keyframes ball-glow {
-  0%, 42% { opacity: 0; }
-  62%, 100% { opacity: 1; }
+/* Franja negra del ecuador, en la mitad de abajo */
+.pb-bottom::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 9%; background: #141414; }
+.pb-mouth {
+  left: 7%; right: 7%; top: 39%; height: 22%; border-radius: 50%; transform: translateZ(1px) scaleY(0);
+  background: radial-gradient(closest-side, #fff 0, #fff 35%, #ffe3ea 62%, rgba(255, 150, 175, .9) 85%, rgba(255, 150, 175, 0));
+  box-shadow: 0 0 calc(var(--s) * .25) calc(var(--s) * .08) rgba(255, 255, 255, .8);
 }
-@keyframes ball-flash {
-  0%, 40% { opacity: 0; transform: scale(.2); }
-  68% { opacity: 1; transform: scale(1.3); }
-  100% { opacity: 0; transform: scale(1.6); }
+.pb-top { left: 0; right: 0; top: 0; height: 50%; transform-origin: 50% 100%; transform-style: preserve-3d; }
+.pb-top i { position: absolute; inset: 0; border-radius: 999px 999px 0 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.pb-top .out {
+  background: radial-gradient(circle at 34% 28%, #ffb39e 0, #ff5a36 22%, #e3350d 55%, #8f1702);
+  border-bottom: calc(var(--s) * .045) solid #141414;
 }
-#dlg-members[open] { max-height: calc(100dvh - 24px); overflow: auto; animation: menu-emerge .32s cubic-bezier(.2, 1.3, .4, 1); }
-@keyframes menu-emerge {
-  from { opacity: 0; transform: scale(.25); }
-  to { opacity: 1; transform: scale(1); }
+/* Por dentro la tapa es oscura y refleja la luz que sale de la bola */
+.pb-top .in { transform: rotateX(180deg); background: radial-gradient(ellipse at 50% 100%, #fff 0, #ffd2dc 18%, #7a1222 55%, #2b0508); }
+.pb-button {
+  left: 50%; top: 50%; width: 30%; height: 30%; margin: -15% 0 0 -15%; border-radius: 50%; transform: translateZ(2px);
+  background: radial-gradient(circle at 40% 35%, #fff 0, #f1f3f8 45%, #c7ccda);
+  border: calc(var(--s) * .05) solid #141414; box-shadow: inset 0 0 0 calc(var(--s) * .025) #fff;
 }
-@media (prefers-reduced-motion: reduce) {
-  #dlg-members[open] { animation: none; }
+.pb-spark {
+  left: 50%; top: 50%; width: 5%; height: 5%; margin: -2.5% 0 0 -2.5%; border-radius: 50%; opacity: 0;
+  background: #fff; box-shadow: 0 0 6px 2px #fff, 0 0 14px 4px rgba(255, 170, 190, .8); transform: translateZ(3px);
 }
+#dlg-members[open] { max-height: calc(100dvh - 24px); overflow: auto; }
+#dlg-members.emerging::backdrop { animation: menu-backdrop .45s ease-out both; }
+@keyframes menu-backdrop { from { opacity: 0; } }
+
 
 /* ------- álbum 3D */
 #dlg-album {

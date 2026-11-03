@@ -954,37 +954,112 @@ function applyPricePrefs() {
   $(".price-filter").hidden = !!state.me.hide_prices;
 }
 
-// La pokéball sale despedida al centro, se abre con un destello como en la serie y de la luz sale el menú
+// La pokéball sale despedida al centro, se tambalea como al capturar, abre la tapa en 3D
+// y de la luz que sale de dentro se despliega el menú.
 let menuOpening = false;
+const BALL_FLY_MS = 420;
+const BALL_WOBBLE_MS = 380;
+const BALL_OPEN_MS = 260;
+
 function openMenu() {
   if (menuOpening) return;
+  const dlg = $("#dlg-members");
   const show = () => {
     revealedValues.clear();
     renderMemberList();
     $("#m-error").hidden = true;
-    $("#dlg-members").showModal();
+    dlg.showModal();
   };
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return show();
+  if (reduceMotion.matches) return show();
   menuOpening = true;
+
   const r = $("#btn-members").getBoundingClientRect();
-  const x = r.left + r.width / 2;
-  const y = r.top + r.height / 2;
+  const size = Math.round(Math.min(130, window.innerWidth * 0.32));
+  const cx = window.innerWidth / 2;
+  const cy = window.innerHeight / 2;
   const fx = document.createElement("div");
-  fx.className = "ball-fx";
-  fx.style.left = `${x}px`;
-  fx.style.top = `${y}px`;
-  fx.style.setProperty("--dx", `${window.innerWidth / 2 - x}px`);
-  fx.style.setProperty("--dy", `${window.innerHeight / 2 - y}px`);
-  fx.innerHTML = $("#btn-members").innerHTML;
-  const flash = document.createElement("div");
-  flash.className = "ball-flash";
-  document.body.append(flash, fx);
+  fx.className = "pb-fx";
+  fx.style.setProperty("--s", `${size}px`);
+  fx.innerHTML = `<i class="pb-shadow"></i><div class="pb-body"><i class="pb-glow"></i><i class="pb-rays"></i><i class="pb-bottom"></i><i class="pb-mouth"></i>
+    <div class="pb-top"><i class="out"></i><i class="in"></i></div><i class="pb-button"></i>${'<i class="pb-spark"></i>'.repeat(10)}</div>`;
+  document.body.append(fx);
+
+  const at = (x, y, scale, turn) => `translate(${x - size / 2}px, ${y - size / 2}px) rotate(${turn}deg) scale(${scale})`;
+  const startScale = r.width / size;
+  const opened = BALL_FLY_MS + BALL_WOBBLE_MS;
+  const total = opened + BALL_OPEN_MS + 520;
+  const timed = (delay, duration, easing = "ease-out") => ({ delay, duration, easing, fill: "both" });
+
+  // 1. Vuelo en arco hasta el centro girando, y un pequeño rebote al llegar
+  fx.animate([
+    { transform: at(r.left + r.width / 2, r.top + r.height / 2, startScale, 0) },
+    { transform: at((r.left + cx) / 2, Math.min(r.top, cy) - size * 0.4, 0.75, 400), offset: 0.45 },
+    { transform: at(cx, cy, 1.08, 720), offset: 0.85 },
+    { transform: at(cx, cy, 1, 720) },
+  ], timed(0, BALL_FLY_MS, "cubic-bezier(.3, .1, .3, 1)"));
+  // 2. Se tambalea dos veces, como cuando atrapa a un Pokémon
+  fx.querySelector(".pb-body").animate([
+    { rotate: "0deg" }, { rotate: "-16deg", offset: 0.2 }, { rotate: "12deg", offset: 0.5 }, { rotate: "-6deg", offset: 0.75 }, { rotate: "0deg" },
+  ], timed(BALL_FLY_MS, BALL_WOBBLE_MS, "ease-in-out"));
+  fx.querySelector(".pb-shadow").animate([{ opacity: 0 }, { opacity: 1 }], timed(BALL_FLY_MS * 0.6, 200));
+  // El botón se ilumina justo antes de abrirse
+  fx.querySelector(".pb-button").animate([
+    { boxShadow: "inset 0 0 0 calc(var(--s) * .025) #fff, 0 0 0 0 rgba(255,255,255,0)" },
+    { boxShadow: "inset 0 0 0 calc(var(--s) * .025) #fff, 0 0 calc(var(--s) * .18) calc(var(--s) * .06) rgba(255,255,255,.95)" },
+  ], timed(opened - 160, 160));
+  // 3. La tapa se levanta sobre su bisagra trasera y por la abertura sale la luz de dentro
+  fx.querySelector(".pb-top").animate([
+    { transform: "translateY(0) rotateX(0deg)" },
+    { transform: "translateY(-30%) rotateX(40deg)", offset: 0.7 },
+    { transform: "translateY(-24%) rotateX(34deg)" },
+  ], timed(opened, BALL_OPEN_MS + 140, "cubic-bezier(.2, .8, .3, 1)"));
+  fx.querySelector(".pb-rays").animate([
+    { opacity: 0, transform: "scaleY(.2) rotate(-6deg)" },
+    { opacity: 0.95, transform: "scaleY(1) rotate(0deg)", offset: 0.4 },
+    { opacity: 0, transform: "scaleY(1.25) rotate(5deg)" },
+  ], timed(opened + 40, 760));
+  fx.querySelector(".pb-mouth").animate([
+    { transform: "translateZ(1px) scaleY(0)" }, { transform: "translateZ(1px) scaleY(1)" },
+  ], timed(opened, BALL_OPEN_MS, "cubic-bezier(.2, .8, .3, 1)"));
+  fx.querySelector(".pb-glow").animate([
+    { opacity: 0, transform: "translateZ(-2px) scale(.4)" },
+    { opacity: 1, transform: "translateZ(-2px) scale(1.4)", offset: 0.45 },
+    { opacity: 0, transform: "translateZ(-2px) scale(3.2)" },
+  ], timed(opened + 60, 700));
+  // Chispas que salen de la abertura
+  fx.querySelectorAll(".pb-spark").forEach((spark, i) => {
+    const angle = Math.PI + (Math.PI * (i + 0.5)) / 10; // abanico hacia arriba
+    const dist = size * (0.9 + (i % 3) * 0.35);
+    spark.animate([
+      { opacity: 0, transform: "translateZ(3px) translate(0, 0) scale(.6)" },
+      { opacity: 1, transform: `translateZ(3px) translate(${Math.cos(angle) * dist * 0.45}px, ${Math.sin(angle) * dist * 0.45}px) scale(1)`, offset: 0.3 },
+      { opacity: 0, transform: `translateZ(3px) translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px) scale(.3)` },
+    ], timed(opened + 80 + (i % 4) * 25, 520));
+  });
+
+  // 4. El menú se despliega desde la luz: crece en círculo desde la boca de la bola
   setTimeout(() => {
     show();
+    dlg.classList.add("emerging");
+    const box = dlg.getBoundingClientRect();
+    const ox = cx - box.left;
+    const oy = cy - box.top;
+    const reach = Math.hypot(Math.max(ox, box.width - ox), Math.max(oy, box.height - oy));
+    const emerge = dlg.animate([
+      { clipPath: `circle(${size * 0.12}px at ${ox}px ${oy}px)`, transform: "scale(.92)", opacity: 0.6 },
+      { clipPath: `circle(${reach}px at ${ox}px ${oy}px)`, transform: "scale(1)", opacity: 1 },
+    ], { duration: 460, easing: "cubic-bezier(.2, .8, .2, 1)", transformOrigin: `${ox}px ${oy}px` });
+    dlg.style.transformOrigin = `${ox}px ${oy}px`;
+    emerge.finished.catch(() => {}).finally(() => {
+      dlg.classList.remove("emerging");
+      dlg.style.transformOrigin = "";
+    });
+  }, opened + BALL_OPEN_MS * 0.55);
+
+  setTimeout(() => {
     fx.remove();
     menuOpening = false;
-  }, 600);
-  setTimeout(() => flash.remove(), 950);
+  }, total);
 }
 
 async function savePricePrefs(change) {
