@@ -3,8 +3,8 @@
   "name": "pokemon30-collection",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
-  // Dominio propio (asignado también desde el panel de Cloudflare)
-  "routes": [{ "pattern": "pokemon30.diemo.dev", "custom_domain": true }],
+  // Dominio propio pokemon30.diemo.dev: asignado desde el panel de Cloudflare (Settings → Domains & Routes).
+  // No se pone aquí "routes": el token de Workers Builds no tiene permisos de zona y el despliegue fallaría.
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
