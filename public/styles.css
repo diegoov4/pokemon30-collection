@@ -378,6 +378,11 @@ td.price { white-space: nowrap; text-align: right; color: var(--muted); }
 
 /* ------- pokéball del menú */
 #me-avatar .avatar { width: 36px; height: 36px; }
+/* Mismo tamaño que la pokéball y el avatar */
+.icon-btn { flex: none; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; overflow: hidden; background: #000; cursor: pointer; transition: transform .15s; }
+.icon-btn img { display: block; width: 100%; height: 100%; }
+.icon-btn:hover { transform: scale(1.08); }
+.icon-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .ball-btn { flex: none; width: 36px; height: 36px; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; transition: transform .15s; }
 .ball-btn:hover { transform: rotate(-14deg) scale(1.08); }
 .ball-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
@@ -519,8 +524,6 @@ td.price { white-space: nowrap; text-align: right; color: var(--muted); }
   .album-stage { --pw: min(calc(100vw - 24px), calc((100dvh - 210px) * .74)); }
   .album-bar select { flex: 1 1 130px; }
   .album-face.back:empty, .curl-face.back .album-face:empty { background: #2a3050; }
-  #btn-album { padding: 8px 10px; font-size: 0; }
-  #btn-album::before { content: "📖"; font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .album-book { transition: none; }
