@@ -29,14 +29,155 @@ function localSet(k, v) {
   try { localStorage.setItem(`p30:${k}`, v); } catch {}
 }
 
+// ------------------------------------------------------------- red
+// Reintentos automáticos, aviso de "sin conexión" y cola de cambios pendientes
+
+const RETRY_DELAYS = [700, 1800, 4000];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const offlineError = () => Object.assign(new Error("Sin conexión"), { offline: true });
+
 async function api(path, opts = {}) {
-  const headers = typeof opts.body === "string" ? { "content-type": "application/json" } : {};
-  const res = await fetch(path, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
-  const body = await res.json().catch(() => ({}));
-  if (res.status === 401) throw Object.assign(new Error("auth"), { status: 401 });
-  if (!res.ok) throw new Error(body.error || `Error ${res.status}`);
-  return body;
+  const { retry, ...init } = opts;
+  const method = (init.method || "GET").toUpperCase();
+  // Los POST (crear usuario, subir carta…) no se repiten solos para no duplicar nada
+  const retryable = retry ?? method !== "POST";
+  const headers = typeof init.body === "string" ? { "content-type": "application/json" } : {};
+  for (let i = 0; ; i++) {
+    let res;
+    try {
+      res = await fetch(path, { ...init, headers: { ...headers, ...(init.headers || {}) } });
+    } catch {
+      if (retryable && navigator.onLine && i < RETRY_DELAYS.length) {
+        net.retrying(true);
+        await sleep(RETRY_DELAYS[i]);
+        continue;
+      }
+      net.retrying(false);
+      net.setOnline(false);
+      throw offlineError();
+    }
+    if (retryable && res.status >= 500 && i < RETRY_DELAYS.length) {
+      net.retrying(true);
+      await sleep(RETRY_DELAYS[i]);
+      continue;
+    }
+    net.retrying(false);
+    net.setOnline(true);
+    const body = await res.json().catch(() => ({}));
+    if (res.status === 401) throw Object.assign(new Error("auth"), { status: 401 });
+    if (!res.ok) throw Object.assign(new Error(body.error || `Error ${res.status}`), { status: res.status });
+    return body;
+  }
 }
+
+// Aviso fijo arriba: sin conexión / reintentando / conexión recuperada
+const net = {
+  online: navigator.onLine,
+  slow: false,
+  flash: null,
+  setOnline(v) {
+    if (v === this.online) return;
+    this.online = v;
+    if (v) {
+      flushPending().then(() => {
+        this.flash = pending.size ? null : "Conexión recuperada";
+        this.render();
+        setTimeout(() => { this.flash = null; this.render(); }, 2500);
+        refresh();
+      });
+    }
+    this.render();
+  },
+  retrying(v) {
+    if (v === this.slow) return;
+    this.slow = v;
+    this.render();
+  },
+  render() {
+    const el = $("#net");
+    if (!el) return;
+    const n = pending.size;
+    const cambios = `${n} ${n === 1 ? "cambio pendiente" : "cambios pendientes"}`;
+    let msg = "", cls = "";
+    if (!this.online) {
+      msg = n ? `Sin conexión · ${cambios}. Se guardarán solos al volver.` : "Sin conexión · lo que veas puede no estar al día";
+      cls = "off";
+    } else if (this.slow) {
+      msg = "Conexión inestable · reintentando…";
+      cls = "slow";
+    } else if (n) {
+      msg = `Guardando ${cambios}…`;
+      cls = "slow";
+    } else if (this.flash) {
+      msg = this.flash;
+      cls = "ok";
+    }
+    el.hidden = !msg || $("#app").hidden;
+    el.className = `net ${cls}`;
+    el.textContent = msg;
+  },
+};
+
+// Cambios de colección hechos sin conexión: cardId -> { qty, lang } (lo último que ve el usuario)
+const pending = new Map();
+let pendingKey = null;
+function loadPending() {
+  pendingKey = `pending:${state.me.id}`;
+  try {
+    for (const [k, v] of Object.entries(JSON.parse(localGet(pendingKey) || "{}"))) pending.set(k, v);
+  } catch {}
+}
+function savePending() {
+  if (pendingKey) localSet(pendingKey, JSON.stringify(Object.fromEntries(pending)));
+  net.render();
+}
+function queueCard(cardId) {
+  const me = state.me.id;
+  pending.set(cardId, { qty: qty(cardId, me), lang: cardLang(cardId, me) });
+  savePending();
+}
+// Vuelve a poner encima de los datos del servidor lo que aún no se ha podido guardar
+function applyPending() {
+  const me = state.me.id;
+  for (const [cardId, { qty: n, lang }] of pending) {
+    if (!state.owned.has(cardId)) state.owned.set(cardId, new Map());
+    if (n) state.owned.get(cardId).set(me, n);
+    else state.owned.get(cardId).delete(me);
+    setLocalLang(cardId, me, n ? lang : "es");
+  }
+}
+let flushing = null;
+function flushPending() {
+  if (!pending.size || !net.online) return Promise.resolve();
+  return (flushing ||= (async () => {
+    try {
+      for (const [cardId, snap] of [...pending]) {
+        try {
+          await api(`/api/collection/${encodeURIComponent(cardId)}`, { method: "PUT", body: JSON.stringify(snap) });
+        } catch (e) {
+          if (e.offline) return; // seguimos sin red: se queda en la cola
+          toast(`No se pudo guardar un cambio: ${e.message}`);
+        }
+        if (pending.get(cardId) === snap) pending.delete(cardId); // si cambió entretanto, se manda en otra vuelta
+        savePending();
+      }
+    } finally {
+      flushing = null;
+    }
+    if (pending.size && net.online) return flushPending();
+  })());
+}
+
+async function refresh() {
+  if (!state.me || pending.size) return;
+  try { await load(); render(); } catch {}
+}
+
+addEventListener("online", () => net.setOnline(true));
+addEventListener("offline", () => net.setOnline(false));
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && pending.size) flushPending().then(refresh);
+});
 
 function toast(msg) {
   const t = $("#toast");
@@ -48,8 +189,8 @@ function toast(msg) {
 
 // ------------------------------------------------------------- carga
 
-async function load() {
-  const data = await api("/api/data");
+async function load(retry = true) {
+  const data = await api("/api/data", { retry });
   state.me = data.me;
   state.sets = data.sets;
   state.cards = data.cards;
@@ -64,39 +205,69 @@ async function load() {
     setLocalLang(c, u, l);
   }
   if (state.set !== "all" && !state.sets.some((s) => s.id === state.set)) state.set = "all";
+  if (!pendingKey) loadPending();
+  applyPending();
 }
 
+let bootRetry = null;
+let booting = false;
 async function boot() {
+  if (booting) return;
+  booting = true;
   try {
-    await load();
+    await load(false); // al arrancar no esperamos: la pantalla de espera ya reintenta sola
   } catch (e) {
     if (e.status === 401) {
+      $("#down").hidden = true;
       $("#login").hidden = false;
       $("#form-login").addEventListener("submit", login);
       return;
     }
-    throw e;
+    // Sin red o servidor caído: pantalla de espera que reintenta sola
+    $("#down-msg").textContent = e.offline
+      ? "No hay conexión con el servidor. En cuanto vuelva, la colección se cargará sola."
+      : `El servidor no responde ahora mismo (${e.message}). Lo seguimos intentando.`;
+    $("#down").hidden = false;
+    clearTimeout(bootRetry);
+    bootRetry = setTimeout(boot, 15000);
+    return;
+  } finally {
+    booting = false;
   }
+  clearTimeout(bootRetry);
+  $("#down").hidden = true;
   $("#login").hidden = true;
   $("#app").hidden = false;
   setupUI();
   render();
+  net.render();
+  flushPending().then(refresh);
   // Refresco periódico para ver los cambios de los demás
   setInterval(async () => {
     if (document.hidden || $("dialog[open]")) return;
-    try { await load(); render(); } catch {}
+    await flushPending();
+    refresh();
   }, 20000);
 }
+$("#down-retry").addEventListener("click", () => { $("#down-msg").textContent = "Reintentando…"; boot(); });
+addEventListener("online", () => { if (!$("#down").hidden) boot(); });
 
 async function login(e) {
   e.preventDefault();
   const err = $("#login-error");
   err.hidden = true;
-  const res = await fetch("/auth/login", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ username: $("#login-user").value, password: $("#login-pass").value }),
-  });
+  let res;
+  try {
+    res = await fetch("/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: $("#login-user").value, password: $("#login-pass").value }),
+    });
+  } catch {
+    err.textContent = "Sin conexión. Comprueba tu red e inténtalo de nuevo.";
+    err.hidden = false;
+    return;
+  }
   if (!res.ok) {
     err.textContent = (await res.json().catch(() => ({}))).error || "No se pudo entrar";
     err.hidden = false;
@@ -429,9 +600,15 @@ async function setQty(cardId, n) {
   apply(n);
   render();
   if ($("#dlg-card").open) openCard(cardId);
+  // Si ya había cambios de esta carta en cola (o no hay red), va a la cola para respetar el orden
+  if (pending.has(cardId) || !net.online) {
+    queueCard(cardId);
+    return flushPending();
+  }
   try {
     await api(`/api/collection/${encodeURIComponent(cardId)}`, { method: "PUT", body: JSON.stringify({ qty: n }) });
   } catch (e) {
+    if (e.offline) return queueCard(cardId);
     apply(prev);
     render();
     toast(`No se pudo guardar: ${e.message}`);
@@ -447,9 +624,14 @@ async function setLang(cardId, lang) {
     if ($("#dlg-card").open) openCard(cardId);
   };
   apply(lang);
+  if (pending.has(cardId) || !net.online) {
+    queueCard(cardId);
+    return flushPending();
+  }
   try {
     await api(`/api/collection/${encodeURIComponent(cardId)}`, { method: "PUT", body: JSON.stringify({ qty: qty(cardId, me), lang }) });
   } catch (e) {
+    if (e.offline) return queueCard(cardId);
     apply(prev);
     toast(`No se pudo guardar: ${e.message}`);
   }

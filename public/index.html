@@ -26,6 +26,19 @@
     </form>
   </section>
 
+  <!-- Sin conexión al arrancar -->
+  <section id="down" class="login" hidden>
+    <div class="login-card">
+      <div class="badge30 big"><span>30</span></div>
+      <h1>Sin conexión</h1>
+      <p id="down-msg">No hay conexión con el servidor.</p>
+      <p class="down-hint">Si estás en España y hay partido, algunos operadores bloquean Cloudflare: prueba con datos móviles o una VPN.</p>
+      <button type="button" class="btn primary wide" id="down-retry">Reintentar</button>
+    </div>
+  </section>
+
+  <div id="net" class="net" role="status" aria-live="polite" hidden></div>
+
   <!-- App -->
   <div id="app" hidden>
     <header class="topbar">

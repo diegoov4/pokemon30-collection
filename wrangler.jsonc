@@ -3,6 +3,8 @@
   "name": "pokemon30-collection",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
+  // Dominio propio (asignado también desde el panel de Cloudflare)
+  "routes": [{ "pattern": "pokemon30.diemo.dev", "custom_domain": true }],
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
