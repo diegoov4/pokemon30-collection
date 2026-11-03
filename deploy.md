@@ -5,7 +5,7 @@ Guía paso a paso para publicar **Pokémon 30** en tu cuenta de Cloudflare. Unos
 Al terminar tendrás:
 
 - La web en `https://pokemon30.<tu-subdominio>.workers.dev`.
-- Una base de datos **D1** con las 209 cartas y el usuario `admin` / `1234`.
+- Una base de datos **D1** con las 209 cartas y el usuario `admin`.
 - Un bucket **R2** donde se guarda una copia de la imagen de cada carta.
 - Dos tareas programadas:
   - cada día busca cartas nuevas;
@@ -89,7 +89,7 @@ Confirma con `y`. Se aplican tres migraciones:
 |---|---|
 | `0001_init.sql` | Crea las tablas |
 | `0002_seed.sql` | Carga las 209 cartas: Celebración 30.º Aniversario, Colección Clásica y promos |
-| `0003_admin.sql` | Crea el usuario **admin** con contraseña **1234** |
+| `0003_admin.sql` | Crea el usuario **admin** con una contraseña inicial |
 
 Para comprobarlo:
 
@@ -127,7 +127,7 @@ Deployed pokemon30 triggers
 ## 7. Primer acceso
 
 1. Abre la URL en el navegador o el móvil.
-2. Entra con **usuario `admin`** y **contraseña `1234`**.
+2. Entra con **usuario `admin`** y la contraseña inicial, y cámbiala enseguida.
 3. **Cambia la contraseña enseguida:** botón **Miembros** (👥 en el móvil) → *Cambiar mi contraseña*.
 4. En **Miembros → Nuevo usuario**, crea un usuario para cada persona del grupo y pásale su usuario y contraseña. Cada uno puede cambiar la suya después.
 
@@ -155,7 +155,7 @@ npx wrangler d1 migrations apply pokemon30 --local
 npm run dev
 ```
 
-Abre http://localhost:8787 y entra con `admin` / `1234`. La base de datos y el R2 locales son independientes de los de producción.
+Abre http://localhost:8787 y entra con el usuario `admin`. La base de datos y el R2 locales son independientes de los de producción.
 
 ## Dominio propio (opcional)
 
@@ -177,10 +177,10 @@ Muestra en directo las peticiones, los errores y el resultado de los crons (`syn
 | `wrangler deploy` falla con *"database_id … is not valid"* o *"Couldn't find a D1 DB"* | No has puesto el `database_id` del paso 3 en `wrangler.jsonc`. |
 | `binding IMAGES … bucket not found` | Falta el paso 5 (`wrangler r2 bucket create pokemon30-images`). |
 | La web dice «Error interno» al entrar | Comprueba que el paso 4 se aplicó con `--remote` (sin él las tablas solo existen en local). |
-| «Usuario o contraseña incorrectos» con admin/1234 | Ya se cambió la contraseña. Para restablecerla a `1234`, ejecuta el comando que hay justo debajo de esta tabla. |
+| «Usuario o contraseña incorrectos» con admin | Ya se cambió la contraseña. Para restablecer la inicial, ejecuta el comando que hay justo debajo de esta tabla. |
 | Muchas cartas «sin imagen» al principio | Normal hasta que se visitan o pasa el cron horario. Si una sigue sin imagen al cabo de un día, súbela a mano desde la carta. |
 
-Restablecer la contraseña de `admin` a `1234`:
+Restablecer la contraseña de `admin` a la inicial (cámbiala justo después):
 
 ```bash
 npx wrangler d1 execute pokemon30 --remote --command "UPDATE users SET pass_salt='p30-admin-salt-1', pass_hash='f564ce60302da575380c45b0b62764a68131e74583cbbd3c3c27f1edc9ed585d' WHERE id='admin'"
