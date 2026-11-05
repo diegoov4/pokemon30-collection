@@ -442,7 +442,8 @@ function renderMe() {
 const isPromoSet = (setId) => setById(setId)?.kind === "promo";
 
 // Bloque de progreso: total entre todos + una tarjeta por coleccionista
-function summaryBlock(cards, ids, { sort = false, setId = null } = {}) {
+// jump: al pulsar en una persona se salta a esa colección / rareza (o se filtra en la vista actual si no hay jump)
+function summaryBlock(cards, ids, { sort = false, jump = null } = {}) {
   const total = cards.length;
   const anyone = cards.filter((c) => state.owned.get(c.id)?.size).length;
   const people = collectors();
@@ -461,13 +462,13 @@ function summaryBlock(cards, ids, { sort = false, setId = null } = {}) {
   if (sort) rows.sort((a, b) => b.have - a.have || b.copies - a.copies);
   const best = rows.reduce((m, r) => Math.max(m, r.have), 0);
   // Al pulsar en las promos se filtra por esa colección; en la base, por la colección que ya está elegida
-  const filtering = !setId || state.set === setId;
+  const filtering = !jump || ((!jump.set || state.set === jump.set) && (jump.rarity || "") === state.rarity);
   $(`#${ids.members}`).innerHTML = rows
     .map(({ u, have, copies }) => {
       const pct = total ? Math.round((have / total) * 100) : 0;
       const active = filtering && (state.owner === `has:${u.id}` || state.owner === `lacks:${u.id}` || (u.id === state.me.id && ["have", "missing"].includes(state.owner)));
       const top = sort && best > 0 && have === best;
-      return `<button class="member ${active ? "active" : ""}" data-user="${esc(u.id)}" ${setId ? `data-user-set="${esc(setId)}"` : ""} style="--c:${esc(u.color)}" title="Ver lo que tiene ${esc(u.name)}">
+      return `<button class="member ${active ? "active" : ""}" data-user="${esc(u.id)}" ${jump?.set ? `data-user-set="${esc(jump.set)}"` : ""} ${jump ? `data-user-rarity="${esc(jump.rarity || "")}"` : ""} style="--c:${esc(u.color)}" title="Ver lo que tiene ${esc(u.name)}">
         ${top ? `<span class="crown" title="Quien más tiene">🏆</span>` : ""}${avatar(u, "lg")}
         <div class="name"><span>${esc(u.name)}${u.id === state.me.id ? " (tú)" : ""}</span><small>${pct}%</small></div>
         <div class="bar"><i style="width:${pct}%"></i></div>
@@ -489,7 +490,46 @@ function renderSummary() {
   const showPromos = promos.length > 0 && !isPromoSet(state.set);
   $("#promo-summary").hidden = !showPromos;
   if (showPromos) {
-    summaryBlock(promos, { count: "promo-count", bar: "promo-bar", sub: "promo-sub", members: "promo-members" }, { sort: true, setId: promoSets.length === 1 ? promoSets[0].id : null });
+    summaryBlock(promos, { count: "promo-count", bar: "promo-bar", sub: "promo-sub", members: "promo-members" }, { sort: true, jump: { set: promoSets.length === 1 ? promoSets[0].id : "all", rarity: "" } });
+  }
+  renderTypeSummaries();
+}
+
+// Tipos de carta destacados: botones rápidos de filtro y su propio ranking (plegado por defecto)
+const CARD_TYPES = [
+  { id: "ir", rarity: "Rara ilustración", label: "Full Art", stars: "★" },
+  { id: "sir", rarity: "Rara ilustración especial", label: "SIR", stars: "★★" },
+  { id: "fut", rarity: "Rara futurista", label: "Futurista", stars: "" },
+];
+const cardTypes = () => CARD_TYPES.filter((t) => state.cards.some((c) => c.rarity === t.rarity));
+let typesOpen = localGet("typesOpen") === "1";
+
+function renderTypeSummaries() {
+  const types = cardTypes();
+  const btn = $("#btn-types");
+  btn.hidden = !types.length;
+  btn.setAttribute("aria-expanded", typesOpen);
+  btn.innerHTML = `${typesOpen ? "▴ Ocultar" : "▾ Ver"} progreso por tipo <small>${types.map((t) => esc(t.label)).join(" · ")}</small>`;
+  const box = $("#type-summaries");
+  box.hidden = !typesOpen || !types.length;
+  if (box.hidden) return;
+  if (box.dataset.types !== types.map((t) => t.id).join()) {
+    box.dataset.types = types.map((t) => t.id).join();
+    box.innerHTML = types
+      .map((t) => `<section class="summary type-summary">
+        <div class="group-stat" data-r="${esc(t.rarity)}">
+          <span class="label">${t.stars ? `<span class="stars">${t.stars}</span> ` : ""}${esc(t.label)} · entre todos</span>
+          <strong id="t-${t.id}-count">0 / 0</strong>
+          <div class="bar"><i id="t-${t.id}-bar"></i></div>
+          <span class="sub" id="t-${t.id}-sub"></span>
+        </div>
+        <div class="members" id="t-${t.id}-members"></div>
+      </section>`)
+      .join("");
+  }
+  for (const t of types) {
+    const ids = { count: `t-${t.id}-count`, bar: `t-${t.id}-bar`, sub: `t-${t.id}-sub`, members: `t-${t.id}-members` };
+    summaryBlock(state.cards.filter((c) => c.rarity === t.rarity), ids, { sort: true, jump: { set: "all", rarity: t.rarity } });
   }
 }
 
@@ -499,7 +539,11 @@ function renderSets() {
   );
   $("#sets").innerHTML = chips
     .map((s) => `<button class="chip ${state.set === s.id ? "on" : ""}" data-set="${esc(s.id)}" role="tab">${esc(s.name)}<b>${s.n}</b></button>`)
-    .join("");
+    .join("") +
+    // Atajos por tipo: filtran por rareza sin cambiar cómo se dividen las colecciones
+    cardTypes()
+      .map((t) => `<button class="chip type ${state.rarity === t.rarity ? "on" : ""}" data-rar="${esc(t.rarity)}" data-r="${esc(t.rarity)}" title="Ver solo ${esc(t.rarity)}">${t.stars ? `<span class="stars">${t.stars}</span>` : ""}${esc(t.label)}<b>${state.cards.filter((c) => c.rarity === t.rarity).length}</b></button>`)
+      .join("");
 }
 
 function renderFilters() {
@@ -1360,7 +1404,7 @@ function setupUI() {
   document.addEventListener("click", (e) => {
     const up = e.target.closest("[data-upload]");
     if (up) { e.preventDefault(); e.stopPropagation(); pickImage(up.dataset.upload); return; }
-    const t = e.target.closest("[data-inc],[data-dec],[data-open],[data-toggle],[data-set],[data-user],[data-view],[data-close],[data-lang-inc],[data-lang-dec]");
+    const t = e.target.closest("[data-inc],[data-dec],[data-open],[data-toggle],[data-set],[data-user],[data-view],[data-close],[data-lang-inc],[data-lang-dec],[data-rar]");
     if (!t) return;
     const d = t.dataset;
     if (d.langInc) changeLang(d.langCard, d.langInc, 1);
@@ -1369,12 +1413,19 @@ function setupUI() {
     else if (d.dec) setQty(d.dec, qty(d.dec, state.me.id) - 1);
     else if (d.toggle) setQty(d.toggle, qty(d.toggle, state.me.id) ? 0 : 1);
     else if (d.open) { e.preventDefault(); openCard(d.open); }
+    else if (d.rar) {
+      // Atajo por tipo: activa/desactiva la rareza; si la colección elegida no tiene ese tipo, se pasa a «Todas»
+      state.rarity = state.rarity === d.rar ? "" : d.rar;
+      if (state.rarity && !cardsInScope().some((c) => c.rarity === state.rarity)) { state.set = "all"; localSet("set", "all"); }
+      render();
+    }
     else if (d.set) { state.set = d.set; localSet("set", d.set); render(); }
     else if (d.user) {
       // Desde el bloque de promos: se salta a la colección de promos y se empieza por «lo que tiene»
-      if (d.userSet && state.set !== d.userSet) {
-        state.set = d.userSet;
-        localSet("set", d.userSet);
+      const jumpRarity = d.userRarity !== undefined && state.rarity !== d.userRarity;
+      if ((d.userSet && state.set !== d.userSet) || jumpRarity) {
+        if (d.userSet) { state.set = d.userSet; localSet("set", d.userSet); }
+        if (d.userRarity !== undefined) state.rarity = d.userRarity;
         state.owner = "all";
       }
       const has = `has:${d.user}`;
@@ -1386,6 +1437,11 @@ function setupUI() {
   });
 
   $("#q").addEventListener("input", (e) => { state.q = e.target.value; render(); });
+  $("#btn-types").addEventListener("click", () => {
+    typesOpen = !typesOpen;
+    localSet("typesOpen", typesOpen ? "1" : "0");
+    renderTypeSummaries();
+  });
   $("#f-rarity").addEventListener("change", (e) => { state.rarity = e.target.value; render(); });
   $("#f-owner").addEventListener("change", (e) => { state.owner = e.target.value; render(); });
   $("#dlg-card").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
