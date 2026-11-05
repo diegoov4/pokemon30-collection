@@ -156,6 +156,8 @@ main { max-width: 1440px; margin: 0 auto; padding: 22px 24px 40px; }
 .type-summary .group-stat .bar i { background: linear-gradient(90deg, var(--r2), var(--r1)); }
 .stars { color: var(--gold); letter-spacing: -1px; margin-right: 4px; }
 .chip:not(.type) + .chip.type { margin-left: 12px; }
+.chip.type + .chip.other { margin-left: 12px; }
+.chip .slab { vertical-align: -2px; margin-right: 6px; }
 .chip.type { border-color: color-mix(in srgb, var(--r1) 50%, var(--line)); }
 .chip.type.on { color: #fff; background: linear-gradient(120deg, var(--r2), var(--r1)); border-color: var(--r1); }
 .chip.type.on b, .chip.type.on .stars { color: #fff; }

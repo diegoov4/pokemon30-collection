@@ -502,8 +502,14 @@ const CARD_TYPES = [
   { id: "ir", rarity: "Rara ilustración", label: "Full Art", stars: "★" },
   { id: "sir", rarity: "Rara ilustración especial", label: "SIR", stars: "★★" },
   { id: "fut", rarity: "Rara futurista", label: "Futurista", stars: "" },
+  // Las Clásicas ya tienen su pestaña de colección: solo se añaden al progreso por tipo
+  { id: "cla", rarity: "Clásica", label: "Clásica", stars: "", summaryOnly: true },
 ];
 const cardTypes = () => CARD_TYPES.filter((t) => state.cards.some((c) => c.rarity === t.rarity));
+const chipTypes = () => cardTypes().filter((t) => !t.summaryOnly);
+
+// Icono propio de «para gradear»: una carta dentro de una funda rígida con etiqueta
+const SLAB_ICON = `<svg class="slab" viewBox="0 0 16 20" width="12" height="15" aria-hidden="true"><rect x="1" y="1" width="14" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="3" width="10" height="3.5" rx=".8" fill="#e3350d"/><rect x="4" y="8.5" width="8" height="8.5" rx=".8" fill="currentColor" opacity=".55"/></svg>`;
 let typesOpen = localGet("typesOpen") === "1";
 
 function renderTypeSummaries() {
@@ -536,16 +542,17 @@ function renderTypeSummaries() {
 }
 
 function renderSets() {
-  const chips = [{ id: "all", name: "Todas", n: state.cards.length }].concat(
-    state.sets.map((s) => ({ id: s.id, name: s.name, n: state.cards.filter((c) => c.set_id === s.id).length })),
-  );
-  $("#sets").innerHTML = chips
-    .map((s) => `<button class="chip ${state.set === s.id ? "on" : ""}" data-set="${esc(s.id)}" role="tab">${esc(s.name)}<b>${s.n}</b></button>`)
-    .join("") +
+  const chip = (s) => ({ id: s.id, name: s.name, kind: s.kind, n: state.cards.filter((c) => c.set_id === s.id).length });
+  const chips = [{ id: "all", name: "Todas", n: state.cards.length }].concat(state.sets.filter((s) => s.kind !== "other").map(chip));
+  const setChip = (s) =>
+    `<button class="chip ${s.kind === "other" ? "other" : ""} ${state.set === s.id ? "on" : ""}" data-set="${esc(s.id)}" role="tab">${s.kind === "other" ? SLAB_ICON : ""}${esc(s.name)}<b>${s.n}</b></button>`;
+  $("#sets").innerHTML = chips.map(setChip).join("") +
     // Atajos por tipo: filtran por rareza sin cambiar cómo se dividen las colecciones
-    cardTypes()
+    chipTypes()
       .map((t) => `<button class="chip type ${state.rarity === t.rarity ? "on" : ""}" data-rar="${esc(t.rarity)}" data-r="${esc(t.rarity)}" title="Ver solo ${esc(t.rarity)}">${t.stars ? `<span class="stars">${t.stars}</span>` : ""}${esc(t.label)}<b>${state.cards.filter((c) => c.rarity === t.rarity).length}</b></button>`)
-      .join("");
+      .join("") +
+    // Grupos aparte («Otros · Para Gradear») al final, después de los tipos
+    state.sets.filter((s) => s.kind === "other").map(chip).map(setChip).join("");
 }
 
 function renderFilters() {
