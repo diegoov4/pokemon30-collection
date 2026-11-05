@@ -177,7 +177,7 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
     const [sets, cards, users, owned] = await env.DB.batch([
       env.DB.prepare("SELECT id, name, kind, release_date, official, logo FROM sets ORDER BY sort_order, release_date, name"),
       env.DB.prepare(
-        "SELECT id, set_id, number, name, rarity, note, source, image_status, coalesce(image_checked_at, 0) AS img_v, cm_trend, cm_mid, cm_updated FROM cards ORDER BY set_id, sort_key, number",
+        "SELECT id, set_id, number, name, rarity, note, source, image_status, coalesce(image_checked_at, 0) AS img_v, cm_trend, cm_mid, cm_updated, cm_manual FROM cards ORDER BY set_id, sort_key, number",
       ),
       env.DB.prepare("SELECT id, name, color, avatar, is_admin FROM users ORDER BY is_admin DESC, created_at"),
       env.DB.prepare("SELECT c.user_id, c.card_id, c.qty, c.lang, c.langs FROM collection c JOIN users u ON u.id = c.user_id WHERE u.is_admin = 0"),
@@ -238,6 +238,33 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
         .run();
     }
     return json({ ok: true, qty: n, langs: counts });
+  }
+
+  // Precio de Cardmarket a mano para cartas sin precio automático. { trend: null, mid: null } lo quita.
+  const pm = path.match(/^\/api\/cards\/(.+)\/price$/);
+  if (pm && req.method === "PUT") {
+    if (user.is_admin) throw new HttpError(403, "El administrador no gestiona precios");
+    const cardId = decodeURIComponent(pm[1]);
+    const body = (await req.json()) as { trend?: unknown; mid?: unknown };
+    const money = (v: unknown) => {
+      if (v === null || v === undefined || v === "") return null;
+      const n = Math.round(Number(String(v).replace(",", ".")) * 100) / 100;
+      if (!Number.isFinite(n) || n <= 0 || n > 1_000_000) throw new HttpError(400, "Precio no válido");
+      return n;
+    };
+    const trend = money(body.trend);
+    const mid = money(body.mid);
+    const card = await env.DB.prepare("SELECT id FROM cards WHERE id = ?").bind(cardId).first();
+    if (!card) throw new HttpError(404, "Carta no encontrada");
+    if (trend === null && mid === null) {
+      // Se quita el precio a mano; si la carta tiene fuente automática, el cron la vuelve a rellenar
+      await env.DB.prepare("UPDATE cards SET cm_trend = NULL, cm_mid = NULL, cm_updated = NULL, cm_manual = 0, cm_checked_at = NULL WHERE id = ?").bind(cardId).run();
+    } else {
+      await env.DB.prepare("UPDATE cards SET cm_trend = ?, cm_mid = ?, cm_updated = ?, cm_manual = 1 WHERE id = ?")
+        .bind(trend, mid, new Date().toISOString(), cardId)
+        .run();
+    }
+    return json({ ok: true, cm_trend: trend, cm_mid: mid });
   }
 
   // Cualquiera del grupo puede dar de alta cartas nuevas (promos, productos futuros...).
@@ -469,7 +496,7 @@ function pickPrice(cm: Record<string, unknown>, field: string): number | null {
 /** Cron: actualiza por tandas los precios más antiguos (Cardmarket los renueva una vez al día). */
 async function refreshPrices(env: Env) {
   const { results } = await env.DB.prepare(
-    `SELECT id, image FROM cards WHERE image LIKE '%assets.tcgdex.net%' AND coalesce(cm_checked_at, 0) < unixepoch() - ?
+    `SELECT id, image FROM cards WHERE image LIKE '%assets.tcgdex.net%' AND cm_manual = 0 AND coalesce(cm_checked_at, 0) < unixepoch() - ?
      ORDER BY coalesce(cm_checked_at, 0) LIMIT ?`,
   )
     .bind(PRICE_MAX_AGE, PRICES_PER_RUN)

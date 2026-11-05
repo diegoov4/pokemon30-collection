@@ -140,6 +140,12 @@ main { max-width: 1440px; margin: 0 auto; padding: 22px 24px 40px; }
 .promo-summary .group-stat { background: linear-gradient(140deg, #1d1638, #1b1a2f 60%); border-color: #4a3a85; }
 .promo-summary .group-stat .label { color: #c7b4ff; }
 .promo-summary .group-stat .bar i { background: linear-gradient(90deg, #8a6cff, #c7b4ff); }
+.manual-price { margin-top: 12px; font-size: 14px; }
+.manual-price summary { cursor: pointer; color: var(--gold); font-weight: 600; }
+.manual-price p { color: var(--muted); font-size: 13px; margin: 8px 0; }
+.manual-price .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin-top: 8px; }
+.manual-price label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 12px; }
+.manual-price input { width: 110px; font: inherit; color: var(--text); background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
 .types-toggle { margin: -6px 0 16px; }
 .types-toggle small { color: var(--muted); font-weight: 500; margin-left: 4px; }
 .type-summary .group-stat {

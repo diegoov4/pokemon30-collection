@@ -660,7 +660,7 @@ function openCard(id) {
           ${state.me.hide_prices ? "" : `<dt>Trend</dt><dd>${price(cardPrice(c, "cm_trend", state.me.id))}</dd>
           <dt>Mid</dt><dd>${price(cardPrice(c, "cm_mid", state.me.id))}</dd>
           ${foreign.length ? `<dt>Ajuste</dt><dd>${foreign.map((k) => `${esc(langInfo(k).name)} × ${String(langInfo(k).factor).replace(".", ",")}`).join(" · ")}${Object.keys(mine).length > 1 ? " (media por copia)" : ""}</dd>` : ""}
-          ${c.cm_updated ? `<dt>Cardmarket</dt><dd>Actualizado el ${esc(new Date(c.cm_updated).toLocaleDateString("es-ES"))}</dd>` : ""}`}
+          ${c.cm_updated ? `<dt>Cardmarket</dt><dd>${c.cm_manual ? "Apuntado a mano" : "Actualizado"} el ${esc(new Date(c.cm_updated).toLocaleDateString("es-ES"))}</dd>` : ""}`}
         </dl>
         <strong>Quién la tiene</strong>
         <div class="who">${
@@ -674,10 +674,43 @@ function openCard(id) {
         ${qty(c.id, state.me.id) ? `<div class="lang-pick"><span>Mis copias por idioma</span><div class="lang-rows">${state.languages
           .map((l) => `<div class="lang-row ${mine[l.code] ? "on" : ""}"><span>${esc(l.name)}</span><div class="stepper mini"><button type="button" data-lang-dec="${esc(l.code)}" data-lang-card="${esc(c.id)}" ${mine[l.code] ? "" : "disabled"} aria-label="Quitar una en ${esc(l.name)}">−</button><b>${mine[l.code] || 0}</b><button type="button" class="add" data-lang-inc="${esc(l.code)}" data-lang-card="${esc(c.id)}" aria-label="Añadir una en ${esc(l.name)}">+</button></div></div>`)
           .join("")}</div></div>` : ""}
+        ${!state.me.is_admin && !state.me.hide_prices && (c.cm_manual || (c.cm_trend == null && c.cm_mid == null)) ? manualPriceHtml(c) : ""}
         <button class="btn ghost small" data-upload="${esc(c.id)}" style="margin-top:14px">📷 Cambiar imagen</button>
       </div>
     </div>`;
   if (!dlg.open) dlg.showModal();
+}
+
+// Precio de Cardmarket a mano (solo cartas sin precio automático, p. ej. Ancient Mew)
+function manualPriceHtml(c) {
+  const v = (x) => (x == null ? "" : String(x).replace(".", ","));
+  return `<details class="manual-price">
+    <summary>✏️ ${c.cm_manual ? "Cambiar precio apuntado a mano" : "Apuntar precio de Cardmarket a mano"}</summary>
+    <form data-price-form="${esc(c.id)}">
+      <p>Esta carta no tiene precio automático. Míralo en Cardmarket y apúntalo aquí; lo verá todo el grupo.</p>
+      <div class="row">
+        <label>Trend € <input name="trend" inputmode="decimal" placeholder="0,00" value="${esc(v(c.cm_trend))}"></label>
+        <label>Mid € <input name="mid" inputmode="decimal" placeholder="0,00" value="${esc(v(c.cm_mid))}"></label>
+      </div>
+      <div class="row">
+        <button class="btn primary small">Guardar</button>
+        ${c.cm_manual ? `<button type="button" class="btn ghost small" data-price-clear="${esc(c.id)}">Quitar precio</button>` : ""}
+      </div>
+    </form>
+  </details>`;
+}
+
+async function saveManualPrice(cardId, trend, mid) {
+  try {
+    const r = await api(`/api/cards/${encodeURIComponent(cardId)}/price`, { method: "PUT", body: JSON.stringify({ trend, mid }) });
+    const c = state.cards.find((x) => x.id === cardId);
+    if (c) Object.assign(c, { cm_trend: r.cm_trend, cm_mid: r.cm_mid, cm_manual: r.cm_trend != null || r.cm_mid != null ? 1 : 0, cm_updated: r.cm_trend != null || r.cm_mid != null ? new Date().toISOString() : null });
+    render();
+    if ($("#dlg-card").open) openCard(cardId);
+    toast(trend == null && mid == null ? "Precio quitado" : "Precio guardado para todos");
+  } catch (e) {
+    toast(`No se pudo guardar: ${e.message}`);
+  }
 }
 
 // ------------------------------------------------------------- acciones
@@ -1439,6 +1472,18 @@ function setupUI() {
   });
 
   $("#q").addEventListener("input", (e) => { state.q = e.target.value; render(); });
+  document.addEventListener("submit", (e) => {
+    const f = e.target.closest("[data-price-form]");
+    if (!f) return;
+    e.preventDefault();
+    const val = (k) => f.elements[k].value.trim() || null;
+    if (!val("trend") && !val("mid")) return toast("Pon al menos un precio");
+    saveManualPrice(f.dataset.priceForm, val("trend"), val("mid"));
+  });
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-price-clear]");
+    if (b) saveManualPrice(b.dataset.priceClear, null, null);
+  });
   $("#btn-types").addEventListener("click", () => {
     typesOpen = !typesOpen;
     localSet("typesOpen", typesOpen ? "1" : "0");
