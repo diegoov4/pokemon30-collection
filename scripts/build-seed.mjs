@@ -40,6 +40,8 @@ for (const set of data.sets) {
       imageAlt ??= `https://images.scrydex.com/pokemon/mep-${parseInt(number.slice(4), 10)}/large`;
     } else if (number === "051/162") {
       image = "https://assets.tcgdex.net/es/sv/sv05/051";
+    } else if (set.id === "promo30" && number === "116/128") {
+      image = `${ASSETS}/30th/116`; // Eevee holo cosmos del blíster: misma ilustración que la 116 de la expansión
     }
     const note = [
       c.illustrator && `Ilus. ${c.illustrator}`,

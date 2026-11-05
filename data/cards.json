@@ -2217,6 +2217,17 @@
           "imageAlt": "https://images.pokemontcg.io/sv5/51_hires.png"
         },
         {
+          "number": "116/128",
+          "name": "Eevee (holo cosmos)",
+          "nameEn": "Eevee (Cosmos Holo)",
+          "rarity": "Promo",
+          "ex": false,
+          "illustrator": "Wintr Wandr",
+          "product": "Blíster de 2 sobres 30.º Aniversario y Colección Knock Out (misma carta que la 116/128 de la expansión, con holo cosmos)",
+          "verified": true,
+          "imageAlt": "https://tcgplayer-cdn.tcgplayer.com/product/717879_in_1000x1000.jpg"
+        },
+        {
           "number": "MEP 093",
           "name": "Pikachu",
           "nameEn": "Pikachu",
