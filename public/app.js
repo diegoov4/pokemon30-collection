@@ -8,7 +8,7 @@ const state = {
   users: [],
   avatars: [],
   languages: [],
-  langs: new Map(), // cardId -> Map(userId -> idioma), solo los que no son español
+  copies: new Map(), // cardId -> Map(userId -> { es: 2, en: 1 }) copias por idioma
   owned: new Map(), // cardId -> Map(userId -> qty)
   view: localGet("view") || "grid",
   set: localGet("set") || "all",
@@ -118,13 +118,16 @@ const net = {
   },
 };
 
-// Cambios de colección hechos sin conexión: cardId -> { qty, lang } (lo último que ve el usuario)
+// Cambios de colección hechos sin conexión: cardId -> { langs: { es: 2, en: 1 } } (lo último que ve el usuario)
 const pending = new Map();
 let pendingKey = null;
 function loadPending() {
   pendingKey = `pending:${state.me.id}`;
   try {
-    for (const [k, v] of Object.entries(JSON.parse(localGet(pendingKey) || "{}"))) pending.set(k, v);
+    for (const [k, v] of Object.entries(JSON.parse(localGet(pendingKey) || "{}"))) {
+      // Cola guardada por una versión anterior: { qty, lang }
+      pending.set(k, v.langs ? v : { langs: v.qty ? { [v.lang || "es"]: v.qty } : {} });
+    }
   } catch {}
 }
 function savePending() {
@@ -133,18 +136,13 @@ function savePending() {
 }
 function queueCard(cardId) {
   const me = state.me.id;
-  pending.set(cardId, { qty: qty(cardId, me), lang: cardLang(cardId, me) });
+  pending.set(cardId, { langs: { ...copies(cardId, me) } });
   savePending();
 }
 // Vuelve a poner encima de los datos del servidor lo que aún no se ha podido guardar
 function applyPending() {
   const me = state.me.id;
-  for (const [cardId, { qty: n, lang }] of pending) {
-    if (!state.owned.has(cardId)) state.owned.set(cardId, new Map());
-    if (n) state.owned.get(cardId).set(me, n);
-    else state.owned.get(cardId).delete(me);
-    setLocalLang(cardId, me, n ? lang : "es");
-  }
+  for (const [cardId, snap] of pending) setCopies(cardId, me, snap.langs);
 }
 let flushing = null;
 function flushPending() {
@@ -198,12 +196,8 @@ async function load(retry = true) {
   state.avatars = data.avatars;
   state.languages = data.languages;
   state.owned = new Map();
-  state.langs = new Map();
-  for (const [u, c, q, l] of data.owned) {
-    if (!state.owned.has(c)) state.owned.set(c, new Map());
-    state.owned.get(c).set(u, q);
-    setLocalLang(c, u, l);
-  }
+  state.copies = new Map();
+  for (const [u, c, q, l] of data.owned) setCopies(c, u, typeof l === "object" && l ? l : { [l || "es"]: q });
   if (state.set !== "all" && !state.sets.some((s) => s.id === state.set)) state.set = "all";
   if (!pendingKey) loadPending();
   applyPending();
@@ -322,25 +316,55 @@ function qty(cardId, userId) {
 const euros = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
 const price = (v) => (v == null ? "—" : euros.format(v));
 
-function setLocalLang(cardId, userId, lang) {
-  if (!state.langs.has(cardId)) state.langs.set(cardId, new Map());
-  if (lang === "es") state.langs.get(cardId).delete(userId);
-  else state.langs.get(cardId).set(userId, lang);
-}
-
-const cardLang = (cardId, userId) => state.langs.get(cardId)?.get(userId) || "es";
 const langInfo = (code) => state.languages.find((l) => l.code === code) || { code, name: code, factor: 1 };
 
-// Cardmarket da un solo precio por carta, sin separar por idioma: se ajusta con el factor de data/languages.json
+// Copias de una carta por idioma, p. ej. { es: 2, en: 1 } ({} si no la tiene)
+const copies = (cardId, userId) => state.copies.get(cardId)?.get(userId) || {};
+
+// Guarda las copias por idioma de un usuario y mantiene el total en state.owned
+function setCopies(cardId, userId, bd = {}) {
+  const clean = {};
+  let n = 0;
+  for (const l of state.languages) {
+    const v = Math.max(0, Math.floor(Number(bd[l.code]) || 0));
+    if (v) { clean[l.code] = v; n += v; }
+  }
+  for (const m of [state.owned, state.copies]) if (!m.has(cardId)) m.set(cardId, new Map());
+  if (n) {
+    state.owned.get(cardId).set(userId, n);
+    state.copies.get(cardId).set(userId, clean);
+  } else {
+    state.owned.get(cardId).delete(userId);
+    state.copies.get(cardId).delete(userId);
+  }
+}
+
+// Idiomas que no son solo español (para avisos de precio estimado)
+const hasForeign = (cardId, userId) => Object.keys(copies(cardId, userId)).some((k) => k !== "es");
+
+// "2 Español, 1 Inglés" o solo "Japonés" si están todas en uno
+function copiesText(cardId, userId) {
+  const e = Object.entries(copies(cardId, userId));
+  if (e.length === 1) return langInfo(e[0][0]).name;
+  return e.map(([k, n]) => `${n} ${langInfo(k).name}`).join(", ");
+}
+
+// Cardmarket da un solo precio por carta, sin separar por idioma: se ajusta con el factor de data/languages.json.
+// Con copias en varios idiomas es la media por copia, así que total = copias × precio.
 function cardPrice(c, metric, userId) {
   const v = c[metric];
   if (v == null) return null;
-  return userId && qty(c.id, userId) ? v * langInfo(cardLang(c.id, userId)).factor : v;
+  const n = userId ? qty(c.id, userId) : 0;
+  if (!n) return v;
+  const factor = Object.entries(copies(c.id, userId)).reduce((sum, [k, q]) => sum + q * langInfo(k).factor, 0) / n;
+  return v * factor;
 }
 
+// Etiqueta de idioma: "EN", o "ES·EN" si hay copias en varios idiomas; nada si todo es español
 function langTag(c, userId) {
-  const lang = userId && qty(c.id, userId) ? cardLang(c.id, userId) : "es";
-  return lang === "es" ? "" : `<span class="langtag" title="${esc(langInfo(lang).name)}">${esc(lang.toUpperCase())}</span>`;
+  if (!userId || !qty(c.id, userId) || !hasForeign(c.id, userId)) return "";
+  const codes = Object.keys(copies(c.id, userId)).map((k) => k.toUpperCase()).join("·");
+  return `<span class="langtag" title="${esc(copiesText(c.id, userId))}">${esc(codes)}</span>`;
 }
 
 const metricName = (m) => (m === "cm_mid" ? "Mid" : "Trend");
@@ -349,7 +373,7 @@ const metricName = (m) => (m === "cm_mid" ? "Mid" : "Trend");
 function priceTag(c, userId = state.me.id) {
   const v = cardPrice(c, state.me.price_metric, userId);
   if (state.me.hide_prices || v == null) return "";
-  const estimated = userId && qty(c.id, userId) && cardLang(c.id, userId) !== "es";
+  const estimated = userId && qty(c.id, userId) && hasForeign(c.id, userId);
   return `<span class="pricetag" title="${metricName(state.me.price_metric)} en Cardmarket${estimated ? ", estimado por idioma" : ""}">${estimated ? "≈ " : ""}${price(v)}</span>`;
 }
 
@@ -548,7 +572,8 @@ function openCard(id) {
   if (!c) return;
   const set = setById(c.set_id);
   const owners = state.owned.get(c.id);
-  const mineLang = qty(c.id, state.me.id) ? cardLang(c.id, state.me.id) : "es";
+  const mine = copies(c.id, state.me.id);
+  const foreign = Object.keys(mine).filter((k) => k !== "es");
   const dlg = $("#dlg-card");
   dlg.innerHTML = `<button class="btn ghost small close" data-close>✕</button>
     <div class="cd">
@@ -563,20 +588,20 @@ function openCard(id) {
           ${c.source === "manual" ? `<dt>Origen</dt><dd>Añadida por el grupo</dd>` : ""}
           ${state.me.hide_prices ? "" : `<dt>Trend</dt><dd>${price(cardPrice(c, "cm_trend", state.me.id))}</dd>
           <dt>Mid</dt><dd>${price(cardPrice(c, "cm_mid", state.me.id))}</dd>
-          ${mineLang !== "es" ? `<dt>Ajuste</dt><dd>${esc(langInfo(mineLang).name)}: estimado × ${String(langInfo(mineLang).factor).replace(".", ",")}</dd>` : ""}
+          ${foreign.length ? `<dt>Ajuste</dt><dd>${foreign.map((k) => `${esc(langInfo(k).name)} × ${String(langInfo(k).factor).replace(".", ",")}`).join(" · ")}${Object.keys(mine).length > 1 ? " (media por copia)" : ""}</dd>` : ""}
           ${c.cm_updated ? `<dt>Cardmarket</dt><dd>Actualizado el ${esc(new Date(c.cm_updated).toLocaleDateString("es-ES"))}</dd>` : ""}`}
         </dl>
         <strong>Quién la tiene</strong>
         <div class="who">${
           owners?.size
-            ? state.users.filter((u) => owners.has(u.id)).map((u) => `<div>${avatar(u)} ${esc(u.name)} · ${owners.get(u.id)} copia${owners.get(u.id) > 1 ? "s" : ""} · ${esc(langInfo(cardLang(c.id, u.id)).name)}</div>`).join("")
+            ? state.users.filter((u) => owners.has(u.id)).map((u) => `<div>${avatar(u)} ${esc(u.name)} · ${owners.get(u.id)} copia${owners.get(u.id) > 1 ? "s" : ""} · ${esc(copiesText(c.id, u.id))}</div>`).join("")
             : `<span class="none" style="color:var(--muted)">Nadie todavía</span>`
         }</div>
         ${state.me.is_admin ? "" : `<div class="stepper" style="max-width:220px">
           <button data-dec="${esc(c.id)}">−</button><span>Tengo <b>${qty(c.id, state.me.id)}</b></span><button class="add" data-inc="${esc(c.id)}">+</button>
         </div>`}
-        ${qty(c.id, state.me.id) ? `<div class="lang-pick"><span>Idioma de mi carta</span><div class="seg" role="group" aria-label="Idioma de mi carta">${state.languages
-          .map((l) => `<button type="button" class="${l.code === mineLang ? "on" : ""}" data-lang="${esc(l.code)}" data-lang-card="${esc(c.id)}">${esc(l.name)}</button>`)
+        ${qty(c.id, state.me.id) ? `<div class="lang-pick"><span>Mis copias por idioma</span><div class="lang-rows">${state.languages
+          .map((l) => `<div class="lang-row ${mine[l.code] ? "on" : ""}"><span>${esc(l.name)}</span><div class="stepper mini"><button type="button" data-lang-dec="${esc(l.code)}" data-lang-card="${esc(c.id)}" ${mine[l.code] ? "" : "disabled"} aria-label="Quitar una en ${esc(l.name)}">−</button><b>${mine[l.code] || 0}</b><button type="button" class="add" data-lang-inc="${esc(l.code)}" data-lang-card="${esc(c.id)}" aria-label="Añadir una en ${esc(l.name)}">+</button></div></div>`)
           .join("")}</div></div>` : ""}
         <button class="btn ghost small" data-upload="${esc(c.id)}" style="margin-top:14px">📷 Cambiar imagen</button>
       </div>
@@ -586,56 +611,51 @@ function openCard(id) {
 
 // ------------------------------------------------------------- acciones
 
-async function setQty(cardId, n) {
-  n = Math.max(0, n);
+// Guarda las copias por idioma de una carta: se ve al momento y se envía (o va a la cola sin red)
+async function saveCopies(cardId, next) {
   const me = state.me.id;
-  const prev = qty(cardId, me);
-  const apply = (v) => {
-    if (!state.owned.has(cardId)) state.owned.set(cardId, new Map());
-    if (v) state.owned.get(cardId).set(me, v);
-    else {
-      state.owned.get(cardId).delete(me);
-      setLocalLang(cardId, me, "es"); // al quitarla del todo, la próxima vuelve a ser en español
-    }
+  const prev = { ...copies(cardId, me) };
+  const apply = (bd) => {
+    setCopies(cardId, me, bd);
+    render();
+    if ($("#dlg-card").open) openCard(cardId);
   };
-  apply(n);
-  render();
-  if ($("#dlg-card").open) openCard(cardId);
+  apply(next);
   // Si ya había cambios de esta carta en cola (o no hay red), va a la cola para respetar el orden
   if (pending.has(cardId) || !net.online) {
     queueCard(cardId);
     return flushPending();
   }
   try {
-    await api(`/api/collection/${encodeURIComponent(cardId)}`, { method: "PUT", body: JSON.stringify({ qty: n }) });
+    await api(`/api/collection/${encodeURIComponent(cardId)}`, { method: "PUT", body: JSON.stringify({ langs: copies(cardId, me) }) });
   } catch (e) {
     if (e.offline) return queueCard(cardId);
     apply(prev);
-    render();
     toast(`No se pudo guardar: ${e.message}`);
   }
 }
 
-async function setLang(cardId, lang) {
-  const me = state.me.id;
-  const prev = cardLang(cardId, me);
-  const apply = (l) => {
-    setLocalLang(cardId, me, l);
-    render();
-    if ($("#dlg-card").open) openCard(cardId);
-  };
-  apply(lang);
-  if (pending.has(cardId) || !net.online) {
-    queueCard(cardId);
-    return flushPending();
+// Cambia el total: las nuevas copias entran en español; al quitar, primero las españolas y luego el resto
+function setQty(cardId, n) {
+  n = Math.max(0, Math.min(99, n));
+  const bd = { ...copies(cardId, state.me.id) };
+  let diff = n - qty(cardId, state.me.id);
+  if (diff > 0) bd.es = (bd.es || 0) + diff;
+  for (const l of ["es", ...state.languages.map((x) => x.code).filter((k) => k !== "es").reverse()]) {
+    if (diff >= 0) break;
+    const take = Math.min(bd[l] || 0, -diff);
+    bd[l] = (bd[l] || 0) - take;
+    diff += take;
   }
-  try {
-    await api(`/api/collection/${encodeURIComponent(cardId)}`, { method: "PUT", body: JSON.stringify({ qty: qty(cardId, me), lang }) });
-  } catch (e) {
-    if (e.offline) return queueCard(cardId);
-    apply(prev);
-    toast(`No se pudo guardar: ${e.message}`);
-  }
+  return saveCopies(cardId, bd);
+}
+
+// +1 / −1 copia en un idioma concreto
+function changeLang(cardId, lang, delta) {
+  const bd = { ...copies(cardId, state.me.id) };
+  if (delta > 0 && qty(cardId, state.me.id) >= 99) return toast("Máximo 99 copias por carta");
+  bd[lang] = Math.max(0, (bd[lang] || 0) + delta);
+  return saveCopies(cardId, bd);
 }
 
 let uploadTarget = null;
@@ -1315,10 +1335,11 @@ function setupUI() {
   document.addEventListener("click", (e) => {
     const up = e.target.closest("[data-upload]");
     if (up) { e.preventDefault(); e.stopPropagation(); pickImage(up.dataset.upload); return; }
-    const t = e.target.closest("[data-inc],[data-dec],[data-open],[data-toggle],[data-set],[data-user],[data-view],[data-close],[data-lang]");
+    const t = e.target.closest("[data-inc],[data-dec],[data-open],[data-toggle],[data-set],[data-user],[data-view],[data-close],[data-lang-inc],[data-lang-dec]");
     if (!t) return;
     const d = t.dataset;
-    if (d.lang) setLang(d.langCard, d.lang);
+    if (d.langInc) changeLang(d.langCard, d.langInc, 1);
+    else if (d.langDec) changeLang(d.langCard, d.langDec, -1);
     else if (d.inc) setQty(d.inc, qty(d.inc, state.me.id) + 1);
     else if (d.dec) setQty(d.dec, qty(d.dec, state.me.id) - 1);
     else if (d.toggle) setQty(d.toggle, qty(d.toggle, state.me.id) ? 0 : 1);

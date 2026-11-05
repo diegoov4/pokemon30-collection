@@ -1,6 +1,17 @@
 import AVATARS from "../data/avatars.json";
 import LANGUAGES from "../data/languages.json";
 
+// Copias por idioma guardadas en collection.langs (JSON) o null si están todas en un idioma
+function parseLangs(raw: string | null): Record<string, number> | null {
+  if (!raw) return null;
+  try {
+    const o = JSON.parse(raw);
+    return o && typeof o === "object" ? o : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
@@ -169,7 +180,7 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
         "SELECT id, set_id, number, name, rarity, note, source, image_status, coalesce(image_checked_at, 0) AS img_v, cm_trend, cm_mid, cm_updated FROM cards ORDER BY set_id, sort_key, number",
       ),
       env.DB.prepare("SELECT id, name, color, avatar, is_admin FROM users ORDER BY is_admin DESC, created_at"),
-      env.DB.prepare("SELECT c.user_id, c.card_id, c.qty, c.lang FROM collection c JOIN users u ON u.id = c.user_id WHERE u.is_admin = 0"),
+      env.DB.prepare("SELECT c.user_id, c.card_id, c.qty, c.lang, c.langs FROM collection c JOIN users u ON u.id = c.user_id WHERE u.is_admin = 0"),
     ]);
     return json({
       me: user,
@@ -178,7 +189,13 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
       sets: sets.results,
       cards: cards.results,
       users: users.results,
-      owned: (owned.results as { user_id: string; card_id: string; qty: number; lang: string }[]).map((r) => [r.user_id, r.card_id, r.qty, r.lang]),
+      // [usuario, carta, total, copias por idioma]
+      owned: (owned.results as { user_id: string; card_id: string; qty: number; lang: string; langs: string | null }[]).map((r) => [
+        r.user_id,
+        r.card_id,
+        r.qty,
+        parseLangs(r.langs) ?? { [r.lang]: r.qty },
+      ]),
     });
   }
 
@@ -186,22 +203,41 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
   if (m && req.method === "PUT") {
     if (user.is_admin) throw new HttpError(403, "El administrador no tiene colección");
     const cardId = decodeURIComponent(m[1]);
-    const { qty, lang } = (await req.json()) as { qty: number; lang?: string };
-    if (lang !== undefined && !LANGUAGES.some((l) => l.code === lang)) throw new HttpError(400, "Idioma no válido");
-    const n = Math.max(0, Math.min(99, Math.floor(Number(qty) || 0)));
+    const body = (await req.json()) as { langs?: Record<string, number>; qty?: number; lang?: string };
     const card = await env.DB.prepare("SELECT id FROM cards WHERE id = ?").bind(cardId).first();
     if (!card) throw new HttpError(404, "Carta no encontrada");
+    const int = (v: unknown) => Math.max(0, Math.min(99, Math.floor(Number(v) || 0)));
+    let counts: Record<string, number>;
+    if (body.langs && typeof body.langs === "object") {
+      // Formato actual: copias por idioma, p. ej. { es: 2, en: 1 }
+      counts = {};
+      for (const [code, v] of Object.entries(body.langs)) {
+        if (!LANGUAGES.some((l) => l.code === code)) throw new HttpError(400, "Idioma no válido");
+        if (int(v)) counts[code] = int(v);
+      }
+    } else {
+      // Formato antiguo: { qty, lang? } → todas las copias en un idioma
+      if (body.lang !== undefined && !LANGUAGES.some((l) => l.code === body.lang)) throw new HttpError(400, "Idioma no válido");
+      let lang = body.lang;
+      if (!lang) lang = ((await env.DB.prepare("SELECT lang FROM collection WHERE user_id = ? AND card_id = ?").bind(user.id, cardId).first("lang")) as string | null) ?? "es";
+      counts = int(body.qty) ? { [lang]: int(body.qty) } : {};
+    }
+    const n = Object.values(counts).reduce((a, b) => a + b, 0);
+    if (n > 99) throw new HttpError(400, "Máximo 99 copias por carta");
     if (n === 0) {
       await env.DB.prepare("DELETE FROM collection WHERE user_id = ? AND card_id = ?").bind(user.id, cardId).run();
     } else {
+      // Idioma principal: el que más copias tiene (en empate, el primero de la lista: español)
+      const main = LANGUAGES.map((l) => l.code).reduce((best, code) => ((counts[code] || 0) > (counts[best] || 0) ? code : best), LANGUAGES[0].code);
+      const langs = Object.keys(counts).length > 1 ? JSON.stringify(counts) : null;
       await env.DB.prepare(
-        `INSERT INTO collection (user_id, card_id, qty, lang) VALUES (?1, ?2, ?3, coalesce(?4, 'es'))
-         ON CONFLICT(user_id, card_id) DO UPDATE SET qty = excluded.qty, lang = coalesce(?4, collection.lang), updated_at = unixepoch()`,
+        `INSERT INTO collection (user_id, card_id, qty, lang, langs) VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(user_id, card_id) DO UPDATE SET qty = excluded.qty, lang = excluded.lang, langs = excluded.langs, updated_at = unixepoch()`,
       )
-        .bind(user.id, cardId, n, lang ?? null)
+        .bind(user.id, cardId, n, main, langs)
         .run();
     }
-    return json({ ok: true, qty: n });
+    return json({ ok: true, qty: n, langs: counts });
   }
 
   // Cualquiera del grupo puede dar de alta cartas nuevas (promos, productos futuros...).

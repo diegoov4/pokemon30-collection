@@ -385,7 +385,15 @@ td.price { white-space: nowrap; text-align: right; color: var(--muted); }
 }
 .slot .langtag { top: 3%; right: auto; left: 3%; padding: 0 4px; border-radius: 4px; font-size: .62em; }
 .lang-pick { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; font-size: 14px; }
-.lang-pick .seg button { padding: 7px 9px; font-size: 13px; }
+.lang-pick { flex-direction: column; align-items: stretch; max-width: 260px; margin-top: 12px; }
+.lang-pick > span { color: var(--muted); font-size: 13px; }
+.lang-rows { display: flex; flex-direction: column; gap: 4px; }
+.lang-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); }
+.lang-row.on { color: var(--text); font-weight: 600; }
+.stepper.mini { gap: 4px; padding: 2px; min-width: 104px; }
+.stepper.mini button { width: 30px; height: 28px; }
+.stepper.mini button:disabled { opacity: .35; cursor: default; }
+.stepper.mini b { min-width: 18px; text-align: center; }
 
 /* ------- pokéball del menú */
 #me-avatar .avatar { width: 36px; height: 36px; }
