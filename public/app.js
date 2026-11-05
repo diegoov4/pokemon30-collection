@@ -439,33 +439,58 @@ function renderMe() {
   $("#me-avatar").innerHTML = avatar(state.me);
 }
 
-function renderSummary() {
-  const scope = cardsInScope();
-  const total = scope.length;
-  const anyone = scope.filter((c) => state.owned.get(c.id)?.size).length;
-  $("#group-count").textContent = `${anyone} / ${total}`;
-  $("#group-bar").style.width = total ? `${(anyone / total) * 100}%` : "0";
-  const people = collectors();
-  $("#group-sub").textContent = `${total ? Math.round((anyone / total) * 100) : 0}% conseguido por al menos uno · ${people.length} coleccionista${people.length === 1 ? "" : "s"}`;
+const isPromoSet = (setId) => setById(setId)?.kind === "promo";
 
-  $("#members").innerHTML = people
-    .map((u) => {
-      let have = 0;
-      let copies = 0;
-      for (const c of scope) {
-        const n = qty(c.id, u.id);
-        if (n) { have++; copies += n; }
-      }
+// Bloque de progreso: total entre todos + una tarjeta por coleccionista
+function summaryBlock(cards, ids, { sort = false, setId = null } = {}) {
+  const total = cards.length;
+  const anyone = cards.filter((c) => state.owned.get(c.id)?.size).length;
+  const people = collectors();
+  $(`#${ids.count}`).textContent = `${anyone} / ${total}`;
+  $(`#${ids.bar}`).style.width = total ? `${(anyone / total) * 100}%` : "0";
+  $(`#${ids.sub}`).textContent = `${total ? Math.round((anyone / total) * 100) : 0}% conseguido por al menos uno · ${people.length} coleccionista${people.length === 1 ? "" : "s"}`;
+  const rows = people.map((u) => {
+    let have = 0;
+    let copies = 0;
+    for (const c of cards) {
+      const n = qty(c.id, u.id);
+      if (n) { have++; copies += n; }
+    }
+    return { u, have, copies };
+  });
+  if (sort) rows.sort((a, b) => b.have - a.have || b.copies - a.copies);
+  const best = rows.reduce((m, r) => Math.max(m, r.have), 0);
+  // Al pulsar en las promos se filtra por esa colección; en la base, por la colección que ya está elegida
+  const filtering = !setId || state.set === setId;
+  $(`#${ids.members}`).innerHTML = rows
+    .map(({ u, have, copies }) => {
       const pct = total ? Math.round((have / total) * 100) : 0;
-      const active = state.owner === `has:${u.id}` || state.owner === `lacks:${u.id}`;
-      return `<button class="member ${active ? "active" : ""}" data-user="${esc(u.id)}" style="--c:${esc(u.color)}" title="Ver lo que tiene ${esc(u.name)}">
+      const active = filtering && (state.owner === `has:${u.id}` || state.owner === `lacks:${u.id}` || (u.id === state.me.id && ["have", "missing"].includes(state.owner)));
+      const top = sort && best > 0 && have === best;
+      return `<button class="member ${active ? "active" : ""}" data-user="${esc(u.id)}" ${setId ? `data-user-set="${esc(setId)}"` : ""} style="--c:${esc(u.color)}" title="Ver lo que tiene ${esc(u.name)}">
         ${avatar(u, "lg")}
-        <div class="name"><span>${esc(u.name)}${u.id === state.me.id ? " (tú)" : ""}</span><small>${pct}%</small></div>
+        <div class="name"><span>${top ? "🏆 " : ""}${esc(u.name)}${u.id === state.me.id ? " (tú)" : ""}</span><small>${pct}%</small></div>
         <div class="bar"><i style="width:${pct}%"></i></div>
         <div class="stats"><span>${have} / ${total} distintas</span><span>${copies - have > 0 ? `${copies - have} repe${copies - have === 1 ? "" : "s"}` : ""}</span></div>
       </button>`;
     })
     .join("");
+}
+
+function renderSummary() {
+  // Con «Todas», arriba va solo la colección base y las promos tienen su propio bloque debajo
+  const all = state.set === "all";
+  const base = all ? state.cards.filter((c) => !isPromoSet(c.set_id)) : cardsInScope();
+  $("#group-label").textContent = all ? "Colección base · entre todos" : isPromoSet(state.set) ? "Promos · entre todos" : "Entre todos";
+  summaryBlock(base, { count: "group-count", bar: "group-bar", sub: "group-sub", members: "members" }, { sort: isPromoSet(state.set) });
+
+  const promoSets = state.sets.filter((s) => s.kind === "promo");
+  const promos = state.cards.filter((c) => isPromoSet(c.set_id));
+  const showPromos = promos.length > 0 && !isPromoSet(state.set);
+  $("#promo-summary").hidden = !showPromos;
+  if (showPromos) {
+    summaryBlock(promos, { count: "promo-count", bar: "promo-bar", sub: "promo-sub", members: "promo-members" }, { sort: true, setId: promoSets.length === 1 ? promoSets[0].id : null });
+  }
 }
 
 function renderSets() {
@@ -1346,6 +1371,12 @@ function setupUI() {
     else if (d.open) { e.preventDefault(); openCard(d.open); }
     else if (d.set) { state.set = d.set; localSet("set", d.set); render(); }
     else if (d.user) {
+      // Desde el bloque de promos: se salta a la colección de promos y se empieza por «lo que tiene»
+      if (d.userSet && state.set !== d.userSet) {
+        state.set = d.userSet;
+        localSet("set", d.userSet);
+        state.owner = "all";
+      }
       const has = `has:${d.user}`;
       state.owner = state.owner === has ? `lacks:${d.user}` : state.owner === `lacks:${d.user}` ? "all" : has;
       if (d.user === state.me.id) state.owner = state.owner.startsWith("has") ? "have" : state.owner.startsWith("lacks") ? "missing" : "all";

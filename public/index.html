@@ -64,12 +64,23 @@
     <main>
       <section class="summary">
         <div class="group-stat">
-          <span class="label">Entre todos</span>
+          <span class="label" id="group-label">Entre todos</span>
           <strong id="group-count">0 / 0</strong>
           <div class="bar"><i id="group-bar"></i></div>
           <span class="sub" id="group-sub"></span>
         </div>
         <div class="members" id="members"></div>
+      </section>
+
+      <!-- Promos: aparte de la colección base -->
+      <section class="summary promo-summary" id="promo-summary" hidden>
+        <div class="group-stat">
+          <span class="label">Promos · entre todos</span>
+          <strong id="promo-count">0 / 0</strong>
+          <div class="bar"><i id="promo-bar"></i></div>
+          <span class="sub" id="promo-sub"></span>
+        </div>
+        <div class="members" id="promo-members"></div>
       </section>
 
       <section class="toolbar">

@@ -137,6 +137,9 @@ main { max-width: 1440px; margin: 0 auto; padding: 22px 24px 40px; }
 .group-stat .label { color: var(--gold); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
 .group-stat strong { font-size: 32px; letter-spacing: -.02em; }
 .group-stat .sub { color: var(--muted); font-size: 13px; }
+.promo-summary .group-stat { background: linear-gradient(140deg, #1d1638, #1b1a2f 60%); border-color: #4a3a85; }
+.promo-summary .group-stat .label { color: #c7b4ff; }
+.promo-summary .group-stat .bar i { background: linear-gradient(90deg, #8a6cff, #c7b4ff); }
 .bar { height: 8px; border-radius: 99px; background: rgba(255, 255, 255, .08); overflow: hidden; }
 .bar i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, var(--gold2), var(--gold)); transition: width .4s; }
 
