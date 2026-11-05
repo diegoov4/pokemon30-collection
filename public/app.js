@@ -440,6 +440,8 @@ function renderMe() {
 }
 
 const isPromoSet = (setId) => setById(setId)?.kind === "promo";
+// Grupos aparte («Otros · para gradear»): no cuentan en la colección base ni tienen ranking
+const isOtherSet = (setId) => setById(setId)?.kind === "other";
 
 // Bloque de progreso: total entre todos + una tarjeta por coleccionista
 // jump: al pulsar en una persona se salta a esa colección / rareza (o se filtra en la vista actual si no hay jump)
@@ -481,7 +483,7 @@ function summaryBlock(cards, ids, { sort = false, jump = null } = {}) {
 function renderSummary() {
   // Con «Todas», arriba va solo la colección base y las promos tienen su propio bloque debajo
   const all = state.set === "all";
-  const base = all ? state.cards.filter((c) => !isPromoSet(c.set_id)) : cardsInScope();
+  const base = all ? state.cards.filter((c) => !isPromoSet(c.set_id) && !isOtherSet(c.set_id)) : cardsInScope();
   $("#group-label").textContent = all ? "Colección base · entre todos" : isPromoSet(state.set) ? "Promos · entre todos" : "Entre todos";
   summaryBlock(base, { count: "group-count", bar: "group-bar", sub: "group-sub", members: "members" }, { sort: true });
 

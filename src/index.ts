@@ -289,7 +289,7 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
     const name = String(body.name || "").trim().slice(0, 80);
     if (!name) throw new HttpError(400, "Falta el nombre");
     const id = slugify(name);
-    const kind = ["expansion", "subset", "promo"].includes(String(body.kind)) ? body.kind : "promo";
+    const kind = ["expansion", "subset", "promo", "other"].includes(String(body.kind)) ? body.kind : "promo";
     await env.DB.prepare(
       "INSERT INTO sets (id, name, kind, release_date, official, sort_order) VALUES (?, ?, ?, ?, ?, 200) ON CONFLICT(id) DO NOTHING",
     )
