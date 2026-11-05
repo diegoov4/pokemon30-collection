@@ -489,7 +489,8 @@ function renderSummary() {
 
   const promoSets = state.sets.filter((s) => s.kind === "promo");
   const promos = state.cards.filter((c) => isPromoSet(c.set_id));
-  const showPromos = promos.length > 0 && !isPromoSet(state.set);
+  // Las promos van al final del bloque plegable «Ver progreso por tipo»
+  const showPromos = typesOpen && promos.length > 0 && !isPromoSet(state.set);
   $("#promo-summary").hidden = !showPromos;
   if (showPromos) {
     summaryBlock(promos, { count: "promo-count", bar: "promo-bar", sub: "promo-sub", members: "promo-members" }, { sort: true, jump: { set: promoSets.length === 1 ? promoSets[0].id : "all", rarity: "" } });
@@ -515,9 +516,10 @@ let typesOpen = localGet("typesOpen") === "1";
 function renderTypeSummaries() {
   const types = cardTypes();
   const btn = $("#btn-types");
-  btn.hidden = !types.length;
+  const hasPromos = state.cards.some((c) => isPromoSet(c.set_id));
+  btn.hidden = !types.length && !hasPromos;
   btn.setAttribute("aria-expanded", typesOpen);
-  btn.innerHTML = `${typesOpen ? "▴ Ocultar" : "▾ Ver"} progreso por tipo <small>${types.map((t) => esc(t.label)).join(" · ")}</small>`;
+  btn.innerHTML = `${typesOpen ? "▴ Ocultar" : "▾ Ver"} progreso por tipo <small>${[...types.map((t) => t.label), ...(hasPromos ? ["Promos"] : [])].map(esc).join(" · ")}</small>`;
   const box = $("#type-summaries");
   box.hidden = !typesOpen || !types.length;
   if (box.hidden) return;
@@ -1494,7 +1496,7 @@ function setupUI() {
   $("#btn-types").addEventListener("click", () => {
     typesOpen = !typesOpen;
     localSet("typesOpen", typesOpen ? "1" : "0");
-    renderTypeSummaries();
+    renderSummary();
   });
   $("#f-rarity").addEventListener("change", (e) => { state.rarity = e.target.value; render(); });
   $("#f-owner").addEventListener("change", (e) => { state.owner = e.target.value; render(); });
