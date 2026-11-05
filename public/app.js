@@ -468,8 +468,8 @@ function summaryBlock(cards, ids, { sort = false, setId = null } = {}) {
       const active = filtering && (state.owner === `has:${u.id}` || state.owner === `lacks:${u.id}` || (u.id === state.me.id && ["have", "missing"].includes(state.owner)));
       const top = sort && best > 0 && have === best;
       return `<button class="member ${active ? "active" : ""}" data-user="${esc(u.id)}" ${setId ? `data-user-set="${esc(setId)}"` : ""} style="--c:${esc(u.color)}" title="Ver lo que tiene ${esc(u.name)}">
-        ${avatar(u, "lg")}
-        <div class="name"><span>${top ? "🏆 " : ""}${esc(u.name)}${u.id === state.me.id ? " (tú)" : ""}</span><small>${pct}%</small></div>
+        ${top ? `<span class="crown" title="Quien más tiene">🏆</span>` : ""}${avatar(u, "lg")}
+        <div class="name"><span>${esc(u.name)}${u.id === state.me.id ? " (tú)" : ""}</span><small>${pct}%</small></div>
         <div class="bar"><i style="width:${pct}%"></i></div>
         <div class="stats"><span>${have} / ${total} distintas</span><span>${copies - have > 0 ? `${copies - have} repe${copies - have === 1 ? "" : "s"}` : ""}</span></div>
       </button>`;
@@ -482,7 +482,7 @@ function renderSummary() {
   const all = state.set === "all";
   const base = all ? state.cards.filter((c) => !isPromoSet(c.set_id)) : cardsInScope();
   $("#group-label").textContent = all ? "Colección base · entre todos" : isPromoSet(state.set) ? "Promos · entre todos" : "Entre todos";
-  summaryBlock(base, { count: "group-count", bar: "group-bar", sub: "group-sub", members: "members" }, { sort: isPromoSet(state.set) });
+  summaryBlock(base, { count: "group-count", bar: "group-bar", sub: "group-sub", members: "members" }, { sort: true });
 
   const promoSets = state.sets.filter((s) => s.kind === "promo");
   const promos = state.cards.filter((c) => isPromoSet(c.set_id));
