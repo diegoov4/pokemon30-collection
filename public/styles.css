@@ -153,6 +153,8 @@ main { max-width: 1440px; margin: 0 auto; padding: 22px 24px 40px; }
   border-color: color-mix(in srgb, var(--r1) 45%, var(--line));
 }
 .type-summary .group-stat .label { color: var(--r1); }
+/* Las Clásicas son todas doradas: el bloque va en dorado */
+.type-summary .group-stat[data-r="Clásica"] { --r1: #ffd54a; --r2: #a8740c; }
 .type-summary .group-stat .bar i { background: linear-gradient(90deg, var(--r2), var(--r1)); }
 .stars { color: var(--gold); letter-spacing: -1px; margin-right: 4px; }
 .chip:not(.type) + .chip.type { margin-left: 12px; }

@@ -503,7 +503,7 @@ const CARD_TYPES = [
   { id: "sir", rarity: "Rara ilustración especial", label: "SIR", stars: "★★" },
   { id: "fut", rarity: "Rara futurista", label: "Futurista", stars: "" },
   // Las Clásicas ya tienen su pestaña de colección: solo se añaden al progreso por tipo
-  { id: "cla", rarity: "Clásica", label: "Clásica", stars: "", summaryOnly: true },
+  { id: "cla", rarity: "Clásica", label: "Clásica", stars: "✦", summaryOnly: true },
 ];
 const cardTypes = () => CARD_TYPES.filter((t) => state.cards.some((c) => c.rarity === t.rarity));
 const chipTypes = () => cardTypes().filter((t) => !t.summaryOnly);
