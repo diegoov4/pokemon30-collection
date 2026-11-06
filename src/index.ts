@@ -1,5 +1,13 @@
 import AVATARS from "../data/avatars.json";
 import LANGUAGES from "../data/languages.json";
+import PRODUCTS from "../data/products.json";
+
+const PURCHASE_SOURCES = [
+  { id: "tienda", name: "Tienda" },
+  { id: "wallapop", name: "Wallapop" },
+  { id: "cardmarket", name: "Cardmarket" },
+  { id: "otro", name: "Otro" },
+];
 
 // Copias por idioma guardadas en collection.langs (JSON) o null si están todas en un idioma
 function parseLangs(raw: string | null): Record<string, number> | null {
@@ -342,6 +350,39 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
       .run();
     if (!res.meta.changes) throw new HttpError(409, "Ese usuario ya existe");
     return json({ ok: true, id });
+  }
+
+  // Gastos: lo que ha pagado cada uno por producto. Lo ve todo el grupo; cada uno edita lo suyo.
+  if (path === "/api/purchases" && req.method === "GET") {
+    const { results } = await env.DB.prepare(
+      `SELECT p.id, p.user_id, p.product, p.name, p.qty, p.unit_price, p.source, p.bought_on FROM purchases p
+       JOIN users u ON u.id = p.user_id WHERE u.is_admin = 0 ORDER BY p.bought_on IS NULL, p.bought_on, p.id`,
+    ).all();
+    return json({ products: PRODUCTS, sources: PURCHASE_SOURCES, purchases: results });
+  }
+  if (path === "/api/purchases" && req.method === "POST") {
+    if (user.is_admin) throw new HttpError(403, "El administrador no tiene compras");
+    const b = (await req.json()) as Record<string, unknown>;
+    const product = PRODUCTS.find((x) => x.id === b.product);
+    if (!product) throw new HttpError(400, "Producto no válido");
+    const name = String(b.name ?? "").trim().slice(0, 80) || null;
+    if ((product as { custom?: boolean }).custom && !name) throw new HttpError(400, "Escribe qué carta o producto es");
+    const qty = Math.floor(Number(b.qty));
+    if (!(qty >= 1 && qty <= 999)) throw new HttpError(400, "Cantidad no válida");
+    const price = Math.round(Number(String(b.unit_price ?? "").replace(",", ".")) * 100) / 100;
+    if (!Number.isFinite(price) || price < 0 || price > 100000) throw new HttpError(400, "Precio no válido");
+    const source = PURCHASE_SOURCES.some((x) => x.id === b.source) ? String(b.source) : null;
+    const boughtOn = /^\d{4}-\d{2}-\d{2}$/.test(String(b.bought_on ?? "")) ? String(b.bought_on) : null;
+    const res = await env.DB.prepare("INSERT INTO purchases (user_id, product, name, qty, unit_price, source, bought_on) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .bind(user.id, product.id, (product as { custom?: boolean }).custom ? name : null, qty, price, source, boughtOn)
+      .run();
+    return json({ ok: true, id: res.meta.last_row_id });
+  }
+  const pu = path.match(/^\/api\/purchases\/(\d+)$/);
+  if (pu && req.method === "DELETE") {
+    const res = await env.DB.prepare("DELETE FROM purchases WHERE id = ? AND user_id = ?").bind(Number(pu[1]), user.id).run();
+    if (!res.meta.changes) throw new HttpError(404, "Esa compra no es tuya o ya no existe");
+    return json({ ok: true });
   }
 
   const mu = path.match(/^\/api\/users\/([^/]+)$/);

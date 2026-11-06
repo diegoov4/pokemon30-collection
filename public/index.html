@@ -166,6 +166,10 @@
         <button value="create" class="btn primary">Crear usuario</button>
       </fieldset>
       <fieldset>
+        <legend>Gastos</legend>
+        <button type="button" class="btn ghost" id="btn-spend">💶 Gastos y beneficio</button>
+      </fieldset>
+      <fieldset>
         <legend>Cambiar mi contraseña</legend>
         <div class="row">
           <label>Actual <input id="p-cur" type="password" autocomplete="current-password" /></label>
@@ -187,6 +191,15 @@
       <p class="form-error" id="m-error" hidden></p>
       <menu><button value="cancel" class="btn ghost" formnovalidate>Cerrar</button></menu>
     </form>
+  </dialog>
+
+  <!-- Gastos: lo que ha pagado cada uno por producto y beneficio frente al valor de las cartas -->
+  <dialog id="dlg-spend" class="spend-dialog">
+    <div class="spend-head">
+      <h2>💶 Gastos y beneficio</h2>
+      <button type="button" class="btn ghost small" data-close>✕ Cerrar</button>
+    </div>
+    <div id="spend-body"></div>
   </dialog>
 
   <dialog id="dlg-avatar">

@@ -1208,6 +1208,131 @@ async function chooseAvatar(value) {
   }
 }
 
+// ------------------------------------------------------------- gastos
+
+const spend = { products: [], sources: [], purchases: [], open: null, loaded: false };
+const lineTotal = (p) => p.qty * p.unit_price;
+const signed = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${euros.format(Math.abs(v))}`;
+
+async function openSpend() {
+  $("#dlg-members").close();
+  if (!spend.loaded) $("#spend-body").innerHTML = `<p class="hint">Cargando…</p>`;
+  $("#dlg-spend").showModal();
+  await loadSpend();
+}
+
+async function loadSpend() {
+  try {
+    Object.assign(spend, await api("/api/purchases"), { loaded: true });
+    renderSpend();
+  } catch (e) {
+    $("#spend-body").innerHTML = `<p class="form-error">No se pudieron cargar los gastos: ${esc(e.message)}</p>`;
+  }
+}
+
+function productName(p) {
+  const prod = spend.products.find((x) => x.id === p.product);
+  return p.name ? `${prod?.name || "Producto"}: ${p.name}` : prod?.name || p.product;
+}
+
+function purchaseLine(p, mine) {
+  const src = spend.sources.find((x) => x.id === p.source)?.name;
+  const when = p.bought_on ? new Date(`${p.bought_on}T12:00`).toLocaleDateString("es-ES") : "";
+  const who = mine ? "" : `${avatar(state.users.find((u) => u.id === p.user_id) || { name: "?" })} `;
+  return `<li class="buy ${mine ? "mine" : ""}">${who}<span class="what">${p.name ? `<b>${esc(p.name)}</b> · ` : ""}${p.qty} × ${euros.format(p.unit_price)}${src ? ` · ${esc(src)}` : ""}${when ? ` · ${esc(when)}` : ""}</span>
+    <span class="sum">${euros.format(lineTotal(p))}</span>${mine ? `<button type="button" class="del" data-del-purchase="${p.id}" title="Borrar esta compra" aria-label="Borrar esta compra">✕</button>` : ""}</li>`;
+}
+
+function renderSpend() {
+  const me = state.me;
+  const people = collectors();
+  const metric = metricName(me.price_metric);
+  const rows = people
+    .map((u) => {
+      const spent = spend.purchases.filter((p) => p.user_id === u.id).reduce((a, p) => a + lineTotal(p), 0);
+      const value = memberValue(u);
+      return { u, spent, value, profit: value - spent };
+    })
+    .sort((a, b) => b.spent - a.spent || b.value - a.value);
+  const spent = rows.reduce((a, r) => a + r.spent, 0);
+  const value = rows.reduce((a, r) => a + r.value, 0);
+  const profit = value - spent;
+
+  const groups = [...new Set(spend.products.map((p) => p.group))];
+  const productsHtml = groups
+    .map((g) => `<h4>${esc(g)}</h4>` + spend.products
+      .filter((p) => p.group === g)
+      .map((prod) => {
+        const all = spend.purchases.filter((p) => p.product === prod.id);
+        const mine = all.filter((p) => p.user_id === me.id);
+        const others = all.filter((p) => p.user_id !== me.id);
+        const myQty = mine.reduce((a, p) => a + p.qty, 0);
+        const mySum = mine.reduce((a, p) => a + lineTotal(p), 0);
+        const otherQty = others.reduce((a, p) => a + p.qty, 0);
+        return `<details class="prod ${myQty ? "has" : ""}" data-prod="${esc(prod.id)}" ${spend.open === prod.id ? "open" : ""}>
+          <summary><span class="pn">${esc(prod.name)}</span><span class="pq">${myQty ? `<b>${myQty} × · ${euros.format(mySum)}</b>` : ""}${otherQty ? `<small>${otherQty} del grupo</small>` : ""}</span></summary>
+          ${mine.length ? `<ul class="buys">${mine.map((p) => purchaseLine(p, true)).join("")}</ul>` : ""}
+          ${me.is_admin ? "" : `<form class="buy-form" data-buy-form="${esc(prod.id)}">
+            ${prod.custom ? `<label class="wide">${prod.id === "single" ? "¿Qué carta?" : "¿Qué producto?"} <input name="name" maxlength="80" required placeholder="${prod.id === "single" ? "Pikachu ex SIR 150/128" : "Lote de sobres"}"></label>` : ""}
+            <label>Cantidad <input name="qty" type="number" min="1" max="999" value="1" required></label>
+            <label>€ por unidad <input name="unit_price" inputmode="decimal" placeholder="0,00" required></label>
+            <label>Dónde <select name="source"><option value="">—</option>${spend.sources.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("")}</select></label>
+            <label>Fecha <input name="bought_on" type="date"></label>
+            <button class="btn primary small">Añadir compra</button>
+          </form>`}
+          ${others.length ? `<p class="others-title">Del resto del grupo</p><ul class="buys">${others.map((p) => purchaseLine(p, false)).join("")}</ul>` : ""}
+        </details>`;
+      })
+      .join(""))
+    .join("");
+
+  $("#spend-body").innerHTML = `
+    <div class="spend-tiles">
+      <div><span>Gastado entre todos</span><strong>${euros.format(spent)}</strong></div>
+      <div><span>Valor de las cartas (${metric})</span><strong>${euros.format(value)}</strong></div>
+      <div class="${profit >= 0 ? "pos" : "neg"}"><span>Beneficio si se vendiera todo</span><strong>${signed(profit)}</strong></div>
+    </div>
+    <table class="spend-table">
+      <thead><tr><th>Persona</th><th>Gastado</th><th>Valor cartas</th><th>Beneficio</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr class="${r.u.id === me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}${r.u.id === me.id ? " (tú)" : ""}</td><td>${euros.format(r.spent)}</td><td>${euros.format(r.value)}</td><td class="${r.profit >= 0 ? "pos" : "neg"}">${signed(r.profit)}</td></tr>`).join("")}</tbody>
+    </table>
+    <p class="hint">El valor es el de Cardmarket (${metric}) de las cartas que tiene cada uno, con el ajuste por idioma. Es una estimación: vender tiene comisiones y envíos.</p>
+    <h3>${me.is_admin ? "Compras del grupo" : "Mis compras"}</h3>
+    <p class="hint">${me.is_admin ? "Toca un producto para ver lo que ha pagado cada uno." : "Toca un producto y añade lo que pagaste. Si compraste varios a precios distintos, añade una compra por cada precio."}</p>
+    <div class="prods">${productsHtml}</div>`;
+}
+
+async function addPurchase(form) {
+  const f = form.elements;
+  const body = {
+    product: form.dataset.buyForm,
+    name: f.name?.value,
+    qty: f.qty.value,
+    unit_price: f.unit_price.value,
+    source: f.source.value,
+    bought_on: f.bought_on.value,
+  };
+  try {
+    await api("/api/purchases", { method: "POST", body: JSON.stringify(body), retry: false });
+    spend.open = body.product;
+    await loadSpend();
+    toast("Compra añadida");
+  } catch (e) {
+    toast(e.offline ? "Sin conexión: no se ha guardado la compra" : `No se pudo guardar: ${e.message}`);
+  }
+}
+
+async function deletePurchase(id) {
+  if (!confirm("¿Borrar esta compra?")) return;
+  try {
+    await api(`/api/purchases/${id}`, { method: "DELETE" });
+    await loadSpend();
+    toast("Compra borrada");
+  } catch (e) {
+    toast(`No se pudo borrar: ${e.message}`);
+  }
+}
+
 // Copias × precio actual; las cartas sin precio no suman
 function memberValue(u) {
   const metric = state.me.price_metric;
@@ -1493,6 +1618,19 @@ function setupUI() {
     const b = e.target.closest("[data-price-clear]");
     if (b) saveManualPrice(b.dataset.priceClear, null, null);
   });
+  $("#btn-spend").addEventListener("click", openSpend);
+  $("#spend-body").addEventListener("submit", (e) => {
+    const f = e.target.closest("[data-buy-form]");
+    if (f) { e.preventDefault(); addPurchase(f); }
+  });
+  $("#spend-body").addEventListener("click", (e) => {
+    const d = e.target.closest("[data-del-purchase]");
+    if (d) deletePurchase(Number(d.dataset.delPurchase));
+  });
+  $("#spend-body").addEventListener("toggle", (e) => {
+    const d = e.target.closest("details.prod");
+    if (d?.open) spend.open = d.dataset.prod;
+  }, true);
   $("#btn-types").addEventListener("click", () => {
     typesOpen = !typesOpen;
     localSet("typesOpen", typesOpen ? "1" : "0");

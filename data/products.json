@@ -1,0 +1,21 @@
+[
+  { "id": "booster", "group": "Sobres", "name": "Sobre suelto 30.º Aniversario" },
+  { "id": "blister2", "group": "Sobres", "name": "Blíster de 2 sobres (promo Eevee holo cosmos)" },
+  { "id": "etb", "group": "Cajas", "name": "Caja de Entrenador Élite (ETB) 30.º Aniversario" },
+  { "id": "ex-greninja", "group": "Cajas", "name": "Caja Greninja ex (Pokémon ex Box)" },
+  { "id": "ex-sylveon", "group": "Cajas", "name": "Caja Sylveon ex (Pokémon ex Box)" },
+  { "id": "knockout", "group": "Cajas", "name": "Colección Knock Out" },
+  { "id": "sticker-exeggutor", "group": "Colecciones", "name": "Colección con Pegatinas – Exeggutor de Alola" },
+  { "id": "sticker-lucario", "group": "Colecciones", "name": "Colección con Pegatinas – Lucario" },
+  { "id": "poster", "group": "Colecciones", "name": "Colección con Póster" },
+  { "id": "figure-mewtwo", "group": "Colecciones", "name": "Colección con Figura Mewtwo" },
+  { "id": "figure-mew", "group": "Colecciones", "name": "Colección con Figura Mew" },
+  { "id": "premium-ditto", "group": "Colecciones", "name": "Colección Premium Ditto" },
+  { "id": "upc-day", "group": "Colecciones", "name": "Colección Ultra-Premium Día (Espeon ex)" },
+  { "id": "upc-night", "group": "Colecciones", "name": "Colección Ultra-Premium Noche (Umbreon ex)" },
+  { "id": "pokemon-day-2026", "group": "Colecciones", "name": "Colección Día de Pokémon 2026" },
+  { "id": "deck-30", "group": "Barajas", "name": "Baraja de Combate 30.º Aniversario" },
+  { "id": "deck-umbreon", "group": "Barajas", "name": "Baraja de Combate Umbreon ex" },
+  { "id": "single", "group": "Otros", "name": "Carta suelta", "custom": true },
+  { "id": "other", "group": "Otros", "name": "Otro producto", "custom": true }
+]

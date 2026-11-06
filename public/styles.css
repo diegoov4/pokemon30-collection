@@ -622,3 +622,50 @@ td.price { white-space: nowrap; text-align: right; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) {
   .album-book { transition: none; }
 }
+
+/* ------- gastos */
+.spend-dialog { width: min(820px, calc(100vw - 32px)); max-height: calc(100dvh - 24px); overflow: auto; }
+.spend-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+.spend-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+.spend-tiles div { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.spend-tiles span { color: var(--muted); font-size: 12px; }
+.spend-tiles strong { font-size: 22px; letter-spacing: -.01em; }
+.spend-tiles .pos { border-color: #2fa86a; } .spend-tiles .pos strong, .spend-table .pos { color: #4ade80; }
+.spend-tiles .neg { border-color: var(--red); } .spend-tiles .neg strong, .spend-table .neg { color: #ff7a5c; }
+.spend-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.spend-table th { text-align: right; color: var(--muted); font-weight: 500; font-size: 12px; padding: 6px 8px; }
+.spend-table td { text-align: right; padding: 7px 8px; border-top: 1px solid var(--line); white-space: nowrap; }
+.spend-table th:first-child, .spend-table td:first-child { text-align: left; }
+.spend-table td:first-child { display: flex; align-items: center; gap: 8px; }
+.spend-table tr.self td { font-weight: 700; color: var(--gold); }
+.spend-dialog h3 { margin: 18px 0 2px; }
+.spend-dialog h4 { margin: 14px 0 6px; color: var(--gold); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.prods { display: flex; flex-direction: column; gap: 6px; }
+.prod { background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; }
+.prod.has { border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); }
+.prod summary { cursor: pointer; display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; font-size: 14px; }
+.prod summary .pq { display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
+.prod summary small { color: var(--muted); }
+.prod[open] { padding-bottom: 12px; }
+.buys { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.buy { display: flex; align-items: center; gap: 8px; }
+.buy .what { flex: 1; min-width: 0; color: var(--muted); }
+.buy.mine .what { color: var(--text); }
+.buy .sum { font-weight: 600; }
+.buy .avatar { width: 22px; height: 22px; font-size: 11px; }
+.buy-form { display: grid; grid-template-columns: 90px 110px 130px 150px auto; gap: 8px; align-items: end; margin: 6px 0 4px; }
+.buy-form .wide { grid-column: 1 / -1; }
+.buy-form > label { min-width: 0; }
+.buy-form input, .buy-form select { width: 100%; box-sizing: border-box; }
+.buy .del { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+.buy .del:hover { color: #fff; background: var(--red); border-color: var(--red); }
+.buy-form input, .buy-form select { font: inherit; font-size: 14px; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; min-width: 0; }
+.others-title { color: var(--muted); font-size: 12px; margin: 10px 0 4px; }
+@media (max-width: 640px) {
+  .spend-tiles { grid-template-columns: 1fr; }
+  .spend-tiles strong { font-size: 20px; }
+  .buy-form { grid-template-columns: 1fr 1fr; }
+  .buy-form .btn { grid-column: 1 / -1; justify-self: start; }
+  .spend-table { font-size: 13px; }
+  .spend-table th, .spend-table td { padding: 6px 4px; }
+}
