@@ -1,6 +1,6 @@
 [
-  {"code":"es","name":"Español","factor":1},
-  {"code":"en","name":"Inglés","factor":1.25},
-  {"code":"ja","name":"Japonés","factor":0.8},
-  {"code":"zh","name":"Chino","factor":0.5}
+  {"code":"es","name":"Español","factor":1,"source":"cardmarket"},
+  {"code":"en","name":"Inglés","factor":1,"source":"tcgplayer"},
+  {"code":"ja","name":"Japonés","factor":1,"source":"tcgplayer"},
+  {"code":"zh","name":"Chino","factor":0.5,"source":"tcgplayer"}
 ]
