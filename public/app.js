@@ -1265,12 +1265,18 @@ function productName(p) {
   return p.name ? `${prod?.name || "Producto"}: ${p.name}` : prod?.name || p.product;
 }
 
+const sealedValue = (p) => (p.sealed ? p.qty * (p.value || 0) : 0);
+
 function purchaseLine(p, mine) {
   const src = spend.sources.find((x) => x.id === p.source)?.name;
+  const prod = spend.products.find((x) => x.id === p.product);
+  const badges = prod?.sealable
+    ? `<span class="lang-badge">${p.lang === "en" ? "EN" : "ES"}</span>${p.sealed ? `<span class="sealed-badge" title="Guardada sellada">📦 Sellada${p.value != null ? ` · vale ${euros.format(p.value)}` : " · sin valor"}</span>` : ""}`
+    : "";
   const when = p.bought_on ? new Date(`${p.bought_on}T12:00`).toLocaleDateString("es-ES") : "";
   const who = mine ? "" : `${avatar(state.users.find((u) => u.id === p.user_id) || { name: "?" })} `;
-  return `<li class="buy ${mine ? "mine" : ""}">${who}<span class="what">${p.name ? `<b>${esc(p.name)}</b> · ` : ""}${p.qty} × ${euros.format(p.unit_price)}${src ? ` · ${esc(src)}` : ""}${when ? ` · ${esc(when)}` : ""}</span>
-    <span class="sum">${euros.format(lineTotal(p))}</span>${mine ? `<button type="button" class="del" data-del-purchase="${p.id}" title="Borrar esta compra" aria-label="Borrar esta compra">✕</button>` : ""}</li>`;
+  return `<li class="buy ${mine ? "mine" : ""}">${who}<span class="what">${badges}<span>${p.name ? `<b>${esc(p.name)}</b> · ` : ""}${p.qty} × ${euros.format(p.unit_price)}${src ? ` · ${esc(src)}` : ""}${when ? ` · ${esc(when)}` : ""}</span></span>
+    <span class="sum">${euros.format(lineTotal(p))}</span>${mine && prod?.sealable ? `<button type="button" class="del" data-edit-sealed="${p.id}" title="${p.sealed ? "Cambiar el valor actual" : "Marcar como guardada sellada"}" aria-label="Editar sellado">✏️</button>` : ""}${mine ? `<button type="button" class="del" data-del-purchase="${p.id}" title="Borrar esta compra" aria-label="Borrar esta compra">✕</button>` : ""}</li>`;
 }
 
 function renderSpend() {
@@ -1279,13 +1285,19 @@ function renderSpend() {
   const metric = metricName(me.price_metric);
   const rows = people
     .map((u) => {
-      const spent = spend.purchases.filter((p) => p.user_id === u.id).reduce((a, p) => a + lineTotal(p), 0);
-      const value = memberValue(u);
-      return { u, spent, value, profit: value - spent };
+      const own = spend.purchases.filter((p) => p.user_id === u.id);
+      const spent = own.reduce((a, p) => a + lineTotal(p), 0);
+      const cards = memberValue(u);
+      const sealed = own.reduce((a, p) => a + sealedValue(p), 0);
+      const value = cards + sealed;
+      return { u, spent, cards, sealed, value, profit: value - spent };
     })
     .sort((a, b) => b.spent - a.spent || b.value - a.value);
   const spent = rows.reduce((a, r) => a + r.spent, 0);
   const value = rows.reduce((a, r) => a + r.value, 0);
+  const cardsTotal = rows.reduce((a, r) => a + r.cards, 0);
+  const sealedTotal = rows.reduce((a, r) => a + r.sealed, 0);
+  const anySealed = spend.purchases.some((p) => p.sealed);
   const profit = value - spent;
 
   const groups = [...new Set(spend.products.map((p) => p.group))];
@@ -1308,6 +1320,11 @@ function renderSpend() {
             <label>€ por unidad <input name="unit_price" inputmode="decimal" placeholder="0,00" required></label>
             <label>Dónde <select name="source"><option value="">—</option>${spend.sources.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("")}</select></label>
             <label>Fecha <input name="bought_on" type="date"></label>
+            ${prod.sealable ? `<div class="sealed-row">
+              <label>Idioma <select name="lang"><option value="es">Español</option><option value="en">Inglés</option></select></label>
+              <label class="check"><input type="checkbox" name="sealed"> 📦 La guardo sellada</label>
+              <label>Valor actual €/ud <input name="value" inputmode="decimal" placeholder="Ej. 200"></label>
+            </div>` : ""}
             <button class="btn primary small">Añadir compra</button>
           </form>`}
           ${others.length ? `<p class="others-title">Del resto del grupo</p><ul class="buys">${others.map((p) => purchaseLine(p, false)).join("")}</ul>` : ""}
@@ -1319,14 +1336,14 @@ function renderSpend() {
   $("#spend-body").innerHTML = `
     <div class="spend-tiles">
       <div><span>Gastado entre todos</span><strong>${euros.format(spent)}</strong></div>
-      <div><span>Valor de las cartas (${metric})</span><strong>${euros.format(value)}</strong></div>
+      <div><span>${anySealed ? "Valor de cartas + sellado" : `Valor de las cartas (${metric})`}</span><strong>${euros.format(value)}</strong>${anySealed ? `<small>Cartas ${euros.format(cardsTotal)} · sellado ${euros.format(sealedTotal)}</small>` : ""}</div>
       <div class="${profit >= 0 ? "pos" : "neg"}"><span>Beneficio si se vendiera todo</span><strong>${signed(profit)}</strong></div>
     </div>
     <table class="spend-table">
-      <thead><tr><th>Persona</th><th>Gastado</th><th>Valor cartas</th><th>Beneficio</th></tr></thead>
-      <tbody>${rows.map((r) => `<tr class="${r.u.id === me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}${r.u.id === me.id ? " (tú)" : ""}</td><td>${euros.format(r.spent)}</td><td>${euros.format(r.value)}</td><td class="${r.profit >= 0 ? "pos" : "neg"}">${signed(r.profit)}</td></tr>`).join("")}</tbody>
+      <thead><tr><th>Persona</th><th>Gastado</th><th>Valor cartas</th>${anySealed ? "<th>Sellado</th>" : ""}<th>Beneficio</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr class="${r.u.id === me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}${r.u.id === me.id ? " (tú)" : ""}</td><td>${euros.format(r.spent)}</td><td>${euros.format(r.cards)}</td>${anySealed ? `<td>${r.sealed ? euros.format(r.sealed) : "—"}</td>` : ""}<td class="${r.profit >= 0 ? "pos" : "neg"}">${signed(r.profit)}</td></tr>`).join("")}</tbody>
     </table>
-    <p class="hint">El valor es el de Cardmarket (${metric}) de las cartas que tiene cada uno, con el ajuste por idioma. Es una estimación: vender tiene comisiones y envíos.</p>
+    <p class="hint">El valor es el de Cardmarket (${metric}) de las cartas que tiene cada uno, con el ajuste por idioma, más el valor que cada uno ha puesto a lo que guarda sellado (ETB y UPC). Es una estimación: vender tiene comisiones y envíos.</p>
     <h3>${me.is_admin ? "Compras del grupo" : "Mis compras"}</h3>
     <p class="hint">${me.is_admin ? "Toca un producto para ver lo que ha pagado cada uno." : "Toca un producto y añade lo que pagaste. Si compraste varios a precios distintos, añade una compra por cada precio."}</p>
     <div class="prods">${productsHtml}</div>`;
@@ -1341,6 +1358,9 @@ async function addPurchase(form) {
     unit_price: f.unit_price.value,
     source: f.source.value,
     bought_on: f.bought_on.value,
+    lang: f.lang?.value,
+    sealed: !!f.sealed?.checked,
+    value: f.value?.value,
   };
   try {
     await api("/api/purchases", { method: "POST", body: JSON.stringify(body), retry: false });
@@ -1349,6 +1369,26 @@ async function addPurchase(form) {
     toast("Compra añadida");
   } catch (e) {
     toast(e.offline ? "Sin conexión: no se ha guardado la compra" : `No se pudo guardar: ${e.message}`);
+  }
+}
+
+// Marcar/desmarcar como sellada y cambiar su valor actual (los precios del sellado se mueven)
+async function editSealed(id) {
+  const p = spend.purchases.find((x) => x.id === id);
+  if (!p) return;
+  const cur = p.value != null ? String(p.value).replace(".", ",") : "";
+  const answer = prompt(
+    `Valor actual por unidad en € de lo que guardas sellado (p. ej. 200).\nDéjalo vacío si ya no la guardas sellada.`,
+    p.sealed ? cur : "",
+  );
+  if (answer === null) return;
+  const sealed = answer.trim() !== "";
+  try {
+    await api(`/api/purchases/${id}`, { method: "PUT", body: JSON.stringify({ sealed, lang: p.lang || "es", value: sealed ? answer : null }) });
+    await loadSpend();
+    toast(sealed ? "Valor del sellado guardado" : "Ya no cuenta como sellada");
+  } catch (e) {
+    toast(`No se pudo guardar: ${e.message}`);
   }
 }
 
@@ -1656,6 +1696,8 @@ function setupUI() {
   $("#spend-body").addEventListener("click", (e) => {
     const d = e.target.closest("[data-del-purchase]");
     if (d) deletePurchase(Number(d.dataset.delPurchase));
+    const ed = e.target.closest("[data-edit-sealed]");
+    if (ed) editSealed(Number(ed.dataset.editSealed));
   });
   $("#spend-body").addEventListener("toggle", (e) => {
     const d = e.target.closest("details.prod");

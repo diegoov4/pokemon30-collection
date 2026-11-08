@@ -9,6 +9,19 @@ const PURCHASE_SOURCES = [
   { id: "otro", name: "Otro" },
 ];
 
+/** Solo ETB y UPC se pueden guardar selladas; idioma es/en y valor actual por unidad (opcional). */
+function sealedFields(product: { sealable?: boolean } | undefined, b: Record<string, unknown>) {
+  if (!product?.sealable) return { sealed: 0, lang: null, value: null };
+  const lang = b.lang === "en" ? "en" : "es";
+  const sealed = b.sealed ? 1 : 0;
+  let value: number | null = null;
+  if (sealed && b.value !== undefined && b.value !== null && String(b.value).trim() !== "") {
+    value = Math.round(Number(String(b.value).replace(",", ".")) * 100) / 100;
+    if (!Number.isFinite(value) || value < 0 || value > 100000) throw new HttpError(400, "Valor no válido");
+  }
+  return { sealed, lang, value };
+}
+
 // Copias por idioma guardadas en collection.langs (JSON) o null si están todas en un idioma
 function parseLangs(raw: string | null): Record<string, number> | null {
   if (!raw) return null;
@@ -355,7 +368,7 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
   // Gastos: lo que ha pagado cada uno por producto. Lo ve todo el grupo; cada uno edita lo suyo.
   if (path === "/api/purchases" && req.method === "GET") {
     const { results } = await env.DB.prepare(
-      `SELECT p.id, p.user_id, p.product, p.name, p.qty, p.unit_price, p.source, p.bought_on FROM purchases p
+      `SELECT p.id, p.user_id, p.product, p.name, p.qty, p.unit_price, p.source, p.bought_on, p.sealed, p.lang, p.value FROM purchases p
        JOIN users u ON u.id = p.user_id WHERE u.is_admin = 0 ORDER BY p.bought_on IS NULL, p.bought_on, p.id`,
     ).all();
     return json({ products: PRODUCTS, sources: PURCHASE_SOURCES, purchases: results });
@@ -373,12 +386,24 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
     if (!Number.isFinite(price) || price < 0 || price > 100000) throw new HttpError(400, "Precio no válido");
     const source = PURCHASE_SOURCES.some((x) => x.id === b.source) ? String(b.source) : null;
     const boughtOn = /^\d{4}-\d{2}-\d{2}$/.test(String(b.bought_on ?? "")) ? String(b.bought_on) : null;
-    const res = await env.DB.prepare("INSERT INTO purchases (user_id, product, name, qty, unit_price, source, bought_on) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .bind(user.id, product.id, (product as { custom?: boolean }).custom ? name : null, qty, price, source, boughtOn)
+    const sealedInfo = sealedFields(product, b);
+    const res = await env.DB.prepare(
+      "INSERT INTO purchases (user_id, product, name, qty, unit_price, source, bought_on, sealed, lang, value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+      .bind(user.id, product.id, (product as { custom?: boolean }).custom ? name : null, qty, price, source, boughtOn, sealedInfo.sealed, sealedInfo.lang, sealedInfo.value)
       .run();
     return json({ ok: true, id: res.meta.last_row_id });
   }
   const pu = path.match(/^\/api\/purchases\/(\d+)$/);
+  if (pu && req.method === "PUT") {
+    // Cambiar sellado / idioma / valor actual de una compra propia (los precios del sellado cambian)
+    const row = await env.DB.prepare("SELECT product FROM purchases WHERE id = ? AND user_id = ?").bind(Number(pu[1]), user.id).first<{ product: string }>();
+    if (!row) throw new HttpError(404, "Esa compra no es tuya o ya no existe");
+    const product = PRODUCTS.find((x) => x.id === row.product);
+    const info = sealedFields(product, (await req.json()) as Record<string, unknown>);
+    await env.DB.prepare("UPDATE purchases SET sealed = ?, lang = ?, value = ? WHERE id = ?").bind(info.sealed, info.lang, info.value, Number(pu[1])).run();
+    return json({ ok: true, ...info });
+  }
   if (pu && req.method === "DELETE") {
     const res = await env.DB.prepare("DELETE FROM purchases WHERE id = ? AND user_id = ?").bind(Number(pu[1]), user.id).run();
     if (!res.meta.changes) throw new HttpError(404, "Esa compra no es tuya o ya no existe");

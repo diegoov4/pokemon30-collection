@@ -669,3 +669,17 @@ td.price { white-space: nowrap; text-align: right; color: var(--muted); }
   .spend-table { font-size: 13px; }
   .spend-table th, .spend-table td { padding: 6px 4px; }
 }
+.spend-tiles small { color: var(--muted); font-size: 12px; }
+.buy-form .check { flex-direction: row; align-items: center; gap: 8px; color: var(--text); font-size: 14px; align-self: center; }
+.buy-form .check input { width: auto; }
+.lang-badge, .sealed-badge { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 700; background: var(--panel2); color: var(--text); }
+.sealed-badge { background: color-mix(in srgb, var(--gold) 22%, var(--panel2)); color: var(--gold); }
+.buy .what { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+.buy .what .lang-badge, .buy .what .sealed-badge { margin-right: 0; }
+.buy-form .sealed-row { grid-column: 1 / -1; order: -1; display: grid; grid-template-columns: 130px auto 150px; gap: 12px; align-items: end; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 10px; }
+.buy-form .sealed-row .check { align-self: end; padding-bottom: 8px; }
+.buy-form .wide { order: -2; }
+@media (max-width: 640px) {
+  .buy-form .sealed-row { grid-template-columns: 1fr 1fr; }
+  .buy-form .sealed-row .check { grid-column: 1 / -1; order: -1; padding-bottom: 0; }
+}
