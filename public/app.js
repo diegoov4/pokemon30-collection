@@ -169,6 +169,7 @@ function flushPending() {
 async function refresh() {
   if (!state.me || pending.size) return;
   try { await load(); render(); } catch {}
+  loadTrades();
 }
 
 addEventListener("online", () => net.setOnline(true));
@@ -1238,6 +1239,424 @@ async function chooseAvatar(value) {
   }
 }
 
+// ------------------------------------------------------------- intercambios
+// Pides cartas a otro miembro, la app propone qué dar a cambio (tus repes que le faltan, con valor parecido),
+// lo ajustas y lo envías. El otro acepta, rechaza o contraoferta. Al marcar un acuerdo como realizado,
+// las cartas pasan de una colección a otra (lo hace el servidor).
+
+const trade = { list: [], tab: "list", with: null, want: [], give: [], parent: null, message: "", pick: "theirs", pickAll: false, q: "", showHistory: false };
+const TRADE_STATUS = {
+  proposed: "Pendiente",
+  accepted: "Acuerdo",
+  doing: "Acuerdo",
+  done: "Realizado",
+  rejected: "Rechazado",
+  cancelled: "Cancelado",
+  countered: "Contraofertado",
+};
+const userById = (id) => state.users.find((u) => u.id === id) || { id, name: id };
+const cardById = (id) => state.cards.find((c) => c.id === id);
+
+async function loadTrades() {
+  if (!state.me || state.me.is_admin) return;
+  try {
+    trade.list = (await api("/api/trades", { retry: false })).trades;
+  } catch {
+    return;
+  }
+  renderTradeBadge();
+  if ($("#dlg-trade").open && trade.tab === "list") renderTrades();
+}
+
+// Lo que te toca mirar: propuestas que te han hecho y acuerdos por completar
+function tradeTodo() {
+  const me = state.me.id;
+  return trade.list.filter((t) => (t.status === "proposed" && t.to_user === me) || t.status === "accepted" || t.status === "doing").length;
+}
+
+function renderTradeBadge() {
+  const n = tradeTodo();
+  $("#trade-badge").hidden = !n;
+  $("#trade-badge").textContent = n;
+  $("#trade-tab-n").textContent = n || "";
+}
+
+// Mediana de precio por rareza: estimación para cartas sin precio en Cardmarket
+let rarityMedianCache = null;
+function rarityMedian(rarity, metric) {
+  if (!rarityMedianCache || rarityMedianCache.cards !== state.cards || rarityMedianCache.metric !== metric) {
+    const by = {};
+    for (const c of state.cards) if (c[metric] != null && c.rarity) (by[c.rarity] ||= []).push(c[metric]);
+    const med = {};
+    for (const [r, vs] of Object.entries(by)) {
+      vs.sort((a, b) => a - b);
+      med[r] = vs[Math.floor(vs.length / 2)];
+    }
+    rarityMedianCache = { cards: state.cards, metric, med };
+  }
+  return rarityMedianCache.med[rarity] ?? null;
+}
+
+// Valor de una copia en un idioma: precio de Cardmarket × ajuste por idioma (o estimación por rareza)
+function unitValue(c, lang) {
+  const metric = state.me.price_metric;
+  let v = c[metric] ?? c.cm_trend ?? c.cm_mid;
+  let est = false;
+  if (v == null) {
+    v = rarityMedian(c.rarity, metric);
+    est = true;
+  }
+  return { v: (v || 0) * langInfo(lang).factor, est: est || v == null };
+}
+
+// Qué copia se daría: una que sobre, mejor la que no es en español si así se queda la española
+function spareLang(cardId, userId) {
+  const bd = copies(cardId, userId);
+  const total = Object.values(bd).reduce((a, b) => a + b, 0);
+  if ((bd.es || 0) >= 2) return "es";
+  if (total >= 2) {
+    const other = Object.keys(bd).find((k) => k !== "es");
+    if (other) return other;
+  }
+  return Object.entries(bd).sort((a, b) => b[1] - a[1])[0]?.[0] || "es";
+}
+
+const itemValue = (i) => {
+  const c = cardById(i.card_id);
+  return c ? unitValue(c, i.lang) : { v: 0, est: true };
+};
+const sumValue = (items) => items.reduce((a, i) => a + itemValue(i).v, 0);
+
+// Mis repes que al otro le faltan (lo sensato para dar), sin las que ya van en la propuesta
+function givePool(me, other, exclude) {
+  return state.cards
+    .filter((c) => qty(c.id, me) >= 2 && !qty(c.id, other) && !exclude.has(c.id) && !isOtherSet(c.set_id))
+    .map((c) => {
+      const lang = spareLang(c.id, me);
+      return { card_id: c.id, lang, v: unitValue(c, lang).v, rarity: c.rarity };
+    });
+}
+
+// Hasta 3 propuestas distintas de qué dar a cambio de lo que pides
+function suggestGive(me, other, want) {
+  if (!want.length) return [];
+  const target = sumValue(want);
+  const pool = givePool(me, other, new Set(want.map((i) => i.card_id)));
+  const out = [];
+  const add = (label, desc, items) => {
+    if (!items.length) return;
+    const key = items.map((i) => i.card_id).sort().join();
+    if (out.some((s) => s.key === key)) return;
+    out.push({ label, desc, key, items: items.map(({ card_id, lang }) => ({ card_id, lang })) });
+  };
+  if (!pool.length) return out;
+
+  // 1. Valor más parecido con el menor número de cartas (mochila en pasos de 10 céntimos, máx. 6 cartas)
+  const unit = 0.1;
+  const cap = Math.max(1, Math.round((target * 1.5 + 1) / unit));
+  const cands = [...pool].sort((a, b) => Math.abs(a.v - target) - Math.abs(b.v - target)).slice(0, 60);
+  const best = new Array(cap + 1).fill(null);
+  best[0] = [];
+  for (const it of cands) {
+    const w = Math.max(1, Math.round(it.v / unit));
+    for (let s = cap; s >= w; s--) {
+      const prev = best[s - w];
+      if (prev && prev.length < 6 && (!best[s] || best[s].length > prev.length + 1)) best[s] = [...prev, it];
+    }
+  }
+  let pick = null;
+  let pickDiff = Infinity;
+  const goal = Math.round(target / unit);
+  for (let s = 1; s <= cap; s++) {
+    if (!best[s]) continue;
+    const d = Math.abs(s - goal) * unit + best[s].length * 0.15; // un poco de penalización por carta
+    if (d < pickDiff) { pickDiff = d; pick = best[s]; }
+  }
+  if (pick) add("⚖️ Valor equilibrado", "La combinación de tus repes que más se acerca al valor de lo que pides.", pick);
+
+  // 2. Carta por carta: por cada carta que pides, una de tus repes de valor parecido
+  const used = new Set();
+  const oneByOne = [];
+  for (const w of [...want].sort((a, b) => itemValue(b).v - itemValue(a).v)) {
+    const wv = itemValue(w).v;
+    const m = pool.filter((p) => !used.has(p.card_id)).sort((a, b) => Math.abs(a.v - wv) - Math.abs(b.v - wv))[0];
+    if (m) { used.add(m.card_id); oneByOne.push(m); }
+  }
+  add("🔁 Carta por carta", "Una de tus repes por cada carta que pides, de valor parecido.", oneByOne);
+
+  // 3. Misma rareza: SIR por SIR, Full Art por Full Art... solo si hay pareja para todas
+  const usedR = new Set();
+  const sameRarity = [];
+  for (const w of want) {
+    const c = cardById(w.card_id);
+    const wv = itemValue(w).v;
+    const m = pool.filter((p) => !usedR.has(p.card_id) && p.rarity === c?.rarity).sort((a, b) => Math.abs(a.v - wv) - Math.abs(b.v - wv))[0];
+    if (!m) { sameRarity.length = 0; break; }
+    usedR.add(m.card_id);
+    sameRarity.push(m);
+  }
+  add("✨ Misma rareza", "Por cada carta que pides, una de tus repes de la misma rareza.", sameRarity);
+  return out;
+}
+
+function openTrade(tab) {
+  if (tab) trade.tab = tab;
+  $("#dlg-trade").showModal();
+  renderTrades();
+  loadTrades();
+}
+
+function startTrade(otherId, { want = [], give = [], parent = null } = {}) {
+  Object.assign(trade, { tab: "new", with: otherId, want, give, parent, message: "", pick: "theirs", pickAll: false, q: "" });
+  renderTrades();
+}
+
+function tradeThumb(c) {
+  if (!c) return `<span class="tthumb"></span>`;
+  const img = c.image_status === "missing" || brokenImages.has(c.id) ? "" : `<img src="${esc(imgUrl(c))}" alt="" loading="lazy" onerror="this.remove()">`;
+  return `<span class="tthumb" data-r="${esc(c.rarity)}">${img}</span>`;
+}
+
+function tradeItemRow(i, removable) {
+  const c = cardById(i.card_id);
+  const { v, est } = itemValue(i);
+  return `<li class="titem">${tradeThumb(c)}<span class="tname"><b>${esc(c?.name || i.card_id)}</b><small>${esc(c ? displayNumber(c) : "")} · ${esc(c?.rarity || "")}${i.lang !== "es" ? ` · <span class="langtag-inline">${esc(i.lang.toUpperCase())}</span>` : ""}</small></span>
+    <span class="tval">${est ? "≈ " : ""}${euros.format(v)}</span>${removable ? `<button type="button" class="del" data-tremove="${esc(removable)}:${esc(i.card_id)}" aria-label="Quitar">✕</button>` : ""}</li>`;
+}
+
+// Resumen de valor de un intercambio desde mi punto de vista
+function balanceHtml(give, get, otherName) {
+  const g = sumValue(give);
+  const r = sumValue(get);
+  const diff = r - g;
+  // Equilibrado si la diferencia es pequeña en proporción (15 %) o de unos céntimos
+  const fair = Math.abs(diff) <= Math.max(0.3, 0.15 * Math.max(g, r));
+  const txt = fair ? "Bastante equilibrado" : diff > 0 ? `Sales ganando ${euros.format(diff)}` : `${esc(otherName)} sale ganando ${euros.format(-diff)}`;
+  return `<div class="tbalance ${fair ? "fair" : diff > 0 ? "up" : "down"}"><span>Das <b>${euros.format(g)}</b></span><span>Recibes <b>${euros.format(r)}</b></span><span class="verdict">${txt}</span></div>`;
+}
+
+function renderTrades() {
+  document.querySelectorAll("[data-ttab]").forEach((b) => b.classList.toggle("on", b.dataset.ttab === trade.tab));
+  renderTradeBadge();
+  $("#trade-body").innerHTML = trade.tab === "new" ? newTradeHtml() : tradeListHtml();
+}
+
+function tradeListHtml() {
+  const me = state.me.id;
+  const card = (t) => {
+    const mine = t.from_user === me;
+    const other = userById(mine ? t.to_user : t.from_user);
+    const give = t.items.filter((i) => i.giver === me);
+    const get = t.items.filter((i) => i.giver !== me);
+    const status = t.status;
+    const actions = [];
+    if (status === "proposed" && !mine) {
+      actions.push(`<button type="button" class="btn primary small" data-taction="accept:${t.id}">✅ Aceptar</button>`);
+      actions.push(`<button type="button" class="btn ghost small" data-tcounter="${t.id}">🔁 Contraoferta</button>`);
+      actions.push(`<button type="button" class="btn ghost small" data-taction="reject:${t.id}">Rechazar</button>`);
+    }
+    if (status === "proposed" && mine) actions.push(`<button type="button" class="btn ghost small" data-taction="cancel:${t.id}">Cancelar propuesta</button>`);
+    if (status === "accepted" || status === "doing") {
+      actions.push(`<button type="button" class="btn primary small" data-taction="done:${t.id}">🤝 Marcar como realizado</button>`);
+      actions.push(`<button type="button" class="btn ghost small" data-taction="cancel:${t.id}">Anular acuerdo</button>`);
+    }
+    const who = mine ? `Propuesta tuya a ${esc(other.name)}` : `${esc(other.name)} te propone`;
+    const when = new Date(t.updated_at * 1000).toLocaleDateString("es-ES");
+    return `<article class="tcard st-${esc(status)}">
+      <header>${avatar(other)}<span class="twho">${who}<small>${when}${t.parent_id ? " · contraoferta" : ""}</small></span><span class="tstatus">${TRADE_STATUS[status] || status}</span></header>
+      ${t.message ? `<p class="tmsg">“${esc(t.message)}”</p>` : ""}
+      <div class="tsides">
+        <div><h5>Das</h5><ul>${give.map((i) => tradeItemRow(i)).join("")}</ul></div>
+        <div><h5>Recibes</h5><ul>${get.map((i) => tradeItemRow(i)).join("")}</ul></div>
+      </div>
+      ${balanceHtml(give, get, other.name)}
+      ${actions.length ? `<div class="tactions">${actions.join("")}</div>` : ""}
+    </article>`;
+  };
+  const open = (t) => ["proposed", "accepted", "doing"].includes(t.status);
+  const incoming = trade.list.filter((t) => t.status === "proposed" && t.to_user === me);
+  const deals = trade.list.filter((t) => t.status === "accepted" || t.status === "doing");
+  const outgoing = trade.list.filter((t) => t.status === "proposed" && t.from_user === me);
+  const history = trade.list.filter((t) => !open(t));
+  const section = (title, list, hint) => (list.length ? `<h3>${title} <small>${list.length}</small></h3>${hint ? `<p class="hint">${hint}</p>` : ""}${list.map(card).join("")}` : "");
+  const body =
+    section("Te proponen", incoming, "Acepta, rechaza o propón otra cosa con una contraoferta.") +
+    section("Acuerdos", deals, "Cuando os veáis y hagáis el cambio, márcalo como realizado: las cartas pasarán de una colección a otra.") +
+    section("Has propuesto", outgoing) +
+    (history.length
+      ? `<details class="thistory" ${trade.showHistory ? "open" : ""}><summary>Historial (${history.length})</summary>${history.map(card).join("")}</details>`
+      : "");
+  return body || `<div class="tempty"><img src="/trade.svg" alt="" width="64" height="64"><p>Aún no tienes intercambios.</p><button type="button" class="btn primary" data-ttab="new">Proponer un intercambio</button></div>`;
+}
+
+function newTradeHtml() {
+  const me = state.me.id;
+  const others = collectors().filter((u) => u.id !== me);
+  if (!trade.with) {
+    return `<p class="hint">¿Con quién quieres intercambiar? Entre paréntesis, cuántas repes suyas te faltan y cuántas tuyas le faltan.</p>
+      <div class="tpeople">${others
+        .map((u) => {
+          const theirs = state.cards.filter((c) => qty(c.id, u.id) >= 2 && !qty(c.id, me)).length;
+          const mine = state.cards.filter((c) => qty(c.id, me) >= 2 && !qty(c.id, u.id)).length;
+          return `<button type="button" class="tperson" data-twith="${esc(u.id)}">${avatar(u, "lg")}<span><b>${esc(u.name)}</b><small>Le sobran ${theirs} que te faltan · te sobran ${mine} que le faltan</small></span></button>`;
+        })
+        .join("")}</div>`;
+  }
+  const other = userById(trade.with);
+  const sugg = suggestGive(me, other.id, trade.want);
+  const ownerId = trade.pick === "theirs" ? other.id : me;
+  const lackerId = trade.pick === "theirs" ? me : other.id;
+  const chosen = new Set((trade.pick === "theirs" ? trade.want : trade.give).map((i) => i.card_id));
+  const q = trade.q.trim().toLowerCase();
+  const pickList = state.cards
+    .filter((c) => qty(c.id, ownerId) > 0)
+    .filter((c) => trade.pickAll || (qty(c.id, ownerId) >= 2 && !qty(c.id, lackerId)))
+    .filter((c) => !q || `${c.name} ${c.number} ${c.rarity || ""}`.toLowerCase().includes(q));
+  const tile = (c) => {
+    const n = qty(c.id, ownerId);
+    const lang = spareLang(c.id, ownerId);
+    const { v, est } = unitValue(c, lang);
+    const lacks = !qty(c.id, lackerId);
+    return `<button type="button" class="ttile ${chosen.has(c.id) ? "on" : ""}" data-tpick="${esc(c.id)}">${tradeThumb(c)}<span class="tn">${esc(c.name)}</span>
+      <small>${esc(displayNumber(c))} · ×${n}${lang !== "es" ? ` · ${esc(lang.toUpperCase())}` : ""}</small><small class="tv">${est ? "≈ " : ""}${euros.format(v)}${lacks ? "" : " · ya la tiene"}</small></button>`;
+  };
+  const sideHtml = (side, items, title, empty) => `<div class="tside"><h4>${title} <small>${items.length ? euros.format(sumValue(items)) : ""}</small></h4>
+    ${items.length ? `<ul>${items.map((i) => tradeItemRow(i, side)).join("")}</ul>` : `<p class="hint">${empty}</p>`}</div>`;
+  const ready = trade.want.length && trade.give.length;
+  const warnSingles = trade.give.filter((i) => qty(i.card_id, me) < 2).map((i) => cardById(i.card_id)?.name);
+  return `<div class="twith">${avatar(other)} <span>Intercambio con <b>${esc(other.name)}</b>${trade.parent ? " · <i>contraoferta</i>" : ""}</span>
+      ${trade.parent ? "" : `<button type="button" class="btn ghost small" data-twith="">Cambiar persona</button>`}</div>
+    <div class="tsides edit">
+      ${sideHtml("want", trade.want, `Pides a ${esc(other.name)}`, "Elige abajo las cartas que quieres.")}
+      ${sideHtml("give", trade.give, "Das tú", trade.want.length ? "Usa una propuesta de la app o elige abajo tus cartas." : "Primero elige lo que quieres.")}
+    </div>
+    ${trade.want.length || trade.give.length ? balanceHtml(trade.give, trade.want, other.name) : ""}
+    ${warnSingles.length ? `<p class="twarn">⚠️ Te quedarías sin: ${warnSingles.map(esc).join(", ")}</p>` : ""}
+    ${trade.want.length ? `<div class="tsugg"><h4>💡 Propuestas de la app</h4>${
+      sugg.length
+        ? sugg
+            .map(
+              (s, k) => `<div class="ts"><div class="tsh"><b>${s.label}</b><span>${euros.format(sumValue(s.items))} por ${euros.format(sumValue(trade.want))}</span><button type="button" class="btn ${k ? "ghost" : "primary"} small" data-tsugg="${k}">Usar esta</button></div>
+              <p class="hint">${s.desc}</p><div class="tmini">${s.items.map((i) => { const c = cardById(i.card_id); return `<span>${tradeThumb(c)}<small>${esc(c?.name || "")}</small></span>`; }).join("")}</div></div>`,
+            )
+            .join("")
+        : `<p class="hint">No tienes repes que a ${esc(other.name)} le falten. Elige abajo qué darías de lo tuyo.</p>`
+    }</div>` : ""}
+    <div class="tpick">
+      <div class="seg"><button type="button" class="${trade.pick === "theirs" ? "on" : ""}" data-tpickside="theirs">Cartas de ${esc(other.name)}</button><button type="button" class="${trade.pick === "mine" ? "on" : ""}" data-tpickside="mine">Mis cartas</button></div>
+      <label class="pref-check"><input type="checkbox" data-tpickall ${trade.pickAll ? "checked" : ""}> Ver todas (no solo ${trade.pick === "theirs" ? "sus repes que te faltan" : "tus repes que le faltan"})</label>
+      <input type="search" class="tsearch" placeholder="Buscar carta…" value="${esc(trade.q)}" data-tq>
+      <div class="ttiles">${pickList.length ? pickList.map(tile).join("") : `<p class="hint">No hay cartas con este filtro. Marca «Ver todas».</p>`}</div>
+    </div>
+    <div class="tsend">
+      <textarea placeholder="Mensaje (opcional): «Te lo cambio el sábado»…" maxlength="300" data-tmsg>${esc(trade.message)}</textarea>
+      <button type="button" class="btn primary" data-tsend ${ready ? "" : "disabled"}>${trade.parent ? "Enviar contraoferta" : "Enviar propuesta"}</button>
+    </div>`;
+}
+
+function togglePick(cardId) {
+  const me = state.me.id;
+  const side = trade.pick === "theirs" ? "want" : "give";
+  const owner = trade.pick === "theirs" ? trade.with : me;
+  const list = trade[side];
+  const at = list.findIndex((i) => i.card_id === cardId);
+  if (at >= 0) list.splice(at, 1);
+  else list.push({ card_id: cardId, lang: spareLang(cardId, owner) });
+  renderTradesKeepScroll();
+}
+
+// Re-pinta sin perder la posición ni el foco del buscador
+function renderTradesKeepScroll() {
+  const dlg = $("#dlg-trade");
+  const top = dlg.scrollTop;
+  const focusQ = document.activeElement?.matches?.("[data-tq]");
+  renderTrades();
+  dlg.scrollTop = top;
+  if (focusQ) {
+    const i = $("[data-tq]");
+    i.focus();
+    i.setSelectionRange(i.value.length, i.value.length);
+  }
+}
+
+async function sendTrade() {
+  const me = state.me.id;
+  const items = [
+    ...trade.want.map((i) => ({ ...i, giver: trade.with })),
+    ...trade.give.map((i) => ({ ...i, giver: me })),
+  ];
+  try {
+    await api("/api/trades", { method: "POST", retry: false, body: JSON.stringify({ to: trade.with, items, message: trade.message, parent_id: trade.parent }) });
+    toast(trade.parent ? "Contraoferta enviada" : `Propuesta enviada a ${userById(trade.with).name}`);
+    Object.assign(trade, { tab: "list", with: null, want: [], give: [], parent: null, message: "" });
+    await loadTrades();
+    renderTrades();
+  } catch (e) {
+    toast(e.offline ? "Sin conexión: no se ha enviado" : `No se pudo enviar: ${e.message}`);
+  }
+}
+
+async function tradeAction(action, id) {
+  const confirmText = {
+    accept: "¿Aceptar este intercambio? Quedará como acuerdo para los dos hasta que lo marquéis como realizado.",
+    reject: "¿Rechazar esta propuesta?",
+    cancel: "¿Cancelar este intercambio?",
+    done: "¿Ya habéis hecho el cambio? Las cartas pasarán de una colección a otra.",
+  }[action];
+  if (!confirm(confirmText)) return;
+  try {
+    await api(`/api/trades/${id}/${action}`, { method: "POST", retry: false });
+    toast({ accept: "¡Acuerdo cerrado! 🤝", reject: "Propuesta rechazada", cancel: "Intercambio cancelado", done: "¡Intercambio realizado! Colecciones actualizadas" }[action]);
+    if (action === "done") { await load(); render(); }
+    await loadTrades();
+    renderTrades();
+  } catch (e) {
+    toast(e.offline ? "Sin conexión" : e.message);
+    loadTrades();
+  }
+}
+
+function counterTrade(id) {
+  const t = trade.list.find((x) => x.id === id);
+  if (!t) return;
+  const me = state.me.id;
+  startTrade(t.from_user, {
+    want: t.items.filter((i) => i.giver !== me).map(({ card_id, lang }) => ({ card_id, lang })),
+    give: t.items.filter((i) => i.giver === me).map(({ card_id, lang }) => ({ card_id, lang })),
+    parent: t.id,
+  });
+}
+
+function setupTrades() {
+  if (state.me.is_admin) return;
+  $("#btn-trade").hidden = false;
+  $("#btn-trade").addEventListener("click", () => openTrade(tradeTodo() ? "list" : trade.list.length ? "list" : "new"));
+  const dlg = $("#dlg-trade");
+  dlg.addEventListener("click", (e) => {
+    const t = e.target.closest("[data-ttab],[data-twith],[data-tpick],[data-tpickside],[data-tremove],[data-tsugg],[data-tsend],[data-taction],[data-tcounter]");
+    if (!t) return;
+    const d = t.dataset;
+    if (d.ttab) { trade.tab = d.ttab; renderTrades(); }
+    else if (d.twith !== undefined) { if (d.twith) startTrade(d.twith); else { trade.with = null; trade.want = []; trade.give = []; renderTrades(); } }
+    else if (d.tpick) togglePick(d.tpick);
+    else if (d.tpickside) { trade.pick = d.tpickside; renderTradesKeepScroll(); }
+    else if (d.tremove) { const [side, id] = d.tremove.split(/:(.+)/); trade[side] = trade[side].filter((i) => i.card_id !== id); renderTradesKeepScroll(); }
+    else if (d.tsugg !== undefined) { trade.give = suggestGive(state.me.id, trade.with, trade.want)[Number(d.tsugg)].items; renderTradesKeepScroll(); }
+    else if (d.tsend !== undefined) sendTrade();
+    else if (d.taction) { const [a, id] = d.taction.split(":"); tradeAction(a, Number(id)); }
+    else if (d.tcounter) counterTrade(Number(d.tcounter));
+  });
+  dlg.addEventListener("input", (e) => {
+    if (e.target.matches("[data-tq]")) { trade.q = e.target.value; renderTradesKeepScroll(); }
+    else if (e.target.matches("[data-tmsg]")) trade.message = e.target.value;
+  });
+  dlg.addEventListener("change", (e) => {
+    if (e.target.matches("[data-tpickall]")) { trade.pickAll = e.target.checked; renderTradesKeepScroll(); }
+  });
+  dlg.addEventListener("toggle", (e) => { if (e.target.matches(".thistory")) trade.showHistory = e.target.open; }, true);
+  loadTrades();
+}
+
 // ------------------------------------------------------------- gastos
 
 const spend = { products: [], sources: [], purchases: [], open: null, loaded: false };
@@ -1688,6 +2107,7 @@ function setupUI() {
     const b = e.target.closest("[data-price-clear]");
     if (b) saveManualPrice(b.dataset.priceClear, null, null);
   });
+  setupTrades();
   $("#btn-spend").addEventListener("click", openSpend);
   $("#spend-body").addEventListener("submit", (e) => {
     const f = e.target.closest("[data-buy-form]");

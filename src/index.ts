@@ -22,6 +22,170 @@ function sealedFields(product: { sealable?: boolean } | undefined, b: Record<str
   return { sealed, lang, value };
 }
 
+/** Sentencia que deja la carta de un usuario con exactamente estas copias por idioma (o la quita si no queda ninguna). */
+function writeCounts(env: Env, userId: string, cardId: string, counts: Record<string, number>): D1PreparedStatement {
+  const clean: Record<string, number> = {};
+  for (const [k, v] of Object.entries(counts)) if (v > 0) clean[k] = v;
+  const n = Object.values(clean).reduce((a, b) => a + b, 0);
+  if (n === 0) return env.DB.prepare("DELETE FROM collection WHERE user_id = ? AND card_id = ?").bind(userId, cardId);
+  // Idioma principal: el que más copias tiene (en empate, el primero de la lista: español)
+  const main = LANGUAGES.map((l) => l.code).reduce((best, code) => ((clean[code] || 0) > (clean[best] || 0) ? code : best), LANGUAGES[0].code);
+  const langs = Object.keys(clean).length > 1 ? JSON.stringify(clean) : null;
+  return env.DB.prepare(
+    `INSERT INTO collection (user_id, card_id, qty, lang, langs) VALUES (?1, ?2, ?3, ?4, ?5)
+     ON CONFLICT(user_id, card_id) DO UPDATE SET qty = excluded.qty, lang = excluded.lang, langs = excluded.langs, updated_at = unixepoch()`,
+  ).bind(userId, cardId, n, main, langs);
+}
+
+// ---------------------------------------------------------------- intercambios
+
+type TradeItem = { card_id: string; giver: string; lang: string };
+type TradeRow = { id: number; from_user: string; to_user: string; status: string; message: string | null; parent_id: number | null; done_by: string | null; created_at: number; updated_at: number };
+
+/** Copias por idioma de varios usuarios y cartas: "usuario|carta" → { es: 2, en: 1 } */
+async function loadCounts(env: Env, users: string[], cards: string[]) {
+  const out = new Map<string, Record<string, number>>();
+  if (!cards.length) return out;
+  const { results } = await env.DB.prepare(
+    `SELECT user_id, card_id, qty, lang, langs FROM collection WHERE user_id IN (${users.map(() => "?").join(",")}) AND card_id IN (${cards.map(() => "?").join(",")})`,
+  )
+    .bind(...users, ...cards)
+    .all<{ user_id: string; card_id: string; qty: number; lang: string; langs: string | null }>();
+  for (const r of results) out.set(`${r.user_id}|${r.card_id}`, parseLangs(r.langs) ?? { [r.lang]: r.qty });
+  return out;
+}
+
+/** Comprueba que cada uno tiene lo que da (contando repeticiones). Devuelve los problemas legibles. */
+async function missingItems(env: Env, users: string[], items: TradeItem[]) {
+  const counts = await loadCounts(env, users, [...new Set(items.map((i) => i.card_id))]);
+  const names = await cardNames(env, items.map((i) => i.card_id));
+  const need = new Map<string, number>();
+  const problems: string[] = [];
+  for (const i of items) {
+    const k = `${i.giver}|${i.card_id}|${i.lang}`;
+    need.set(k, (need.get(k) || 0) + 1);
+    const have = counts.get(`${i.giver}|${i.card_id}`)?.[i.lang] || 0;
+    if (need.get(k)! > have) problems.push(`${names.get(i.card_id) || i.card_id} (${i.lang.toUpperCase()})`);
+  }
+  return { counts, problems: [...new Set(problems)] };
+}
+
+async function cardNames(env: Env, ids: string[]) {
+  const uniq = [...new Set(ids)];
+  if (!uniq.length) return new Map<string, string>();
+  const { results } = await env.DB.prepare(`SELECT id, name FROM cards WHERE id IN (${uniq.map(() => "?").join(",")})`).bind(...uniq).all<{ id: string; name: string }>();
+  return new Map(results.map((r) => [r.id, r.name]));
+}
+
+async function tradeRoutes(env: Env, req: Request, path: string, user: { id: string; is_admin: number }): Promise<Response | null> {
+  if (!path.startsWith("/api/trades")) return null;
+  if (user.is_admin) throw new HttpError(403, "El administrador no hace intercambios");
+
+  if (path === "/api/trades" && req.method === "GET") {
+    const { results: trades } = await env.DB.prepare(
+      "SELECT * FROM trades WHERE from_user = ?1 OR to_user = ?1 ORDER BY updated_at DESC, id DESC LIMIT 200",
+    )
+      .bind(user.id)
+      .all<TradeRow>();
+    const ids = trades.map((t) => t.id);
+    const items = ids.length
+      ? (await env.DB.prepare(`SELECT trade_id, card_id, giver, lang FROM trade_items WHERE trade_id IN (${ids.map(() => "?").join(",")})`).bind(...ids).all<TradeItem & { trade_id: number }>()).results
+      : [];
+    return json({ trades: trades.map((t) => ({ ...t, items: items.filter((i) => i.trade_id === t.id).map(({ trade_id: _, ...i }) => i) })) });
+  }
+
+  if (path === "/api/trades" && req.method === "POST") {
+    const b = (await req.json()) as { to?: string; items?: TradeItem[]; message?: string; parent_id?: number };
+    const to = String(b.to || "");
+    if (to === user.id) throw new HttpError(400, "No puedes intercambiar contigo mismo");
+    const other = await env.DB.prepare("SELECT id FROM users WHERE id = ? AND is_admin = 0").bind(to).first();
+    if (!other) throw new HttpError(400, "Ese usuario no existe");
+    const items: TradeItem[] = (Array.isArray(b.items) ? b.items : []).slice(0, 40).map((i) => ({
+      card_id: String(i.card_id),
+      giver: String(i.giver),
+      lang: LANGUAGES.some((l) => l.code === i.lang) ? String(i.lang) : "es",
+    }));
+    if (items.some((i) => i.giver !== user.id && i.giver !== to)) throw new HttpError(400, "Cada carta la tiene que dar uno de los dos");
+    if (!items.some((i) => i.giver === user.id) || !items.some((i) => i.giver === to)) throw new HttpError(400, "Tiene que haber al menos una carta por cada lado");
+    const { problems } = await missingItems(env, [user.id, to], items);
+    if (problems.length) throw new HttpError(409, `Ya no se tienen estas cartas: ${problems.join(", ")}`);
+    let parent: TradeRow | null = null;
+    if (b.parent_id) {
+      parent = await env.DB.prepare("SELECT * FROM trades WHERE id = ?").bind(Number(b.parent_id)).first<TradeRow>();
+      if (!parent || parent.status !== "proposed" || parent.to_user !== user.id || parent.from_user !== to) throw new HttpError(409, "Esa propuesta ya no admite contraoferta");
+    }
+    const message = String(b.message || "").trim().slice(0, 300) || null;
+    const created = await env.DB.prepare("INSERT INTO trades (from_user, to_user, message, parent_id) VALUES (?, ?, ?, ?) RETURNING id")
+      .bind(user.id, to, message, parent?.id ?? null)
+      .first<{ id: number }>();
+    const stmts = items.map((i) => env.DB.prepare("INSERT INTO trade_items (trade_id, card_id, giver, lang) VALUES (?, ?, ?, ?)").bind(created!.id, i.card_id, i.giver, i.lang));
+    if (parent) stmts.push(env.DB.prepare("UPDATE trades SET status = 'countered', updated_at = unixepoch() WHERE id = ? AND status = 'proposed'").bind(parent.id));
+    await env.DB.batch(stmts);
+    return json({ ok: true, id: created!.id });
+  }
+
+  const m = path.match(/^\/api\/trades\/(\d+)\/(accept|reject|cancel|done)$/);
+  if (m && req.method === "POST") {
+    const id = Number(m[1]);
+    const action = m[2];
+    const t = await env.DB.prepare("SELECT * FROM trades WHERE id = ?").bind(id).first<TradeRow>();
+    if (!t || (t.from_user !== user.id && t.to_user !== user.id)) throw new HttpError(404, "Intercambio no encontrado");
+    const items = (await env.DB.prepare("SELECT card_id, giver, lang FROM trade_items WHERE trade_id = ?").bind(id).all<TradeItem>()).results;
+    const set = (status: string, extra = "") =>
+      env.DB.prepare(`UPDATE trades SET status = ?, updated_at = unixepoch()${extra} WHERE id = ? AND status = ?`);
+
+    if (action === "accept" || action === "reject") {
+      if (t.to_user !== user.id || t.status !== "proposed") throw new HttpError(409, "Esta propuesta ya no está pendiente");
+      if (action === "accept") {
+        const { problems } = await missingItems(env, [t.from_user, t.to_user], items);
+        if (problems.length) throw new HttpError(409, `No se puede aceptar: ya no se tienen ${problems.join(", ")}`);
+      }
+      const res = await set(action === "accept" ? "accepted" : "rejected").bind(action === "accept" ? "accepted" : "rejected", id, "proposed").run();
+      if (!res.meta.changes) throw new HttpError(409, "Esta propuesta ya no está pendiente");
+      return json({ ok: true });
+    }
+
+    if (action === "cancel") {
+      const ok = (t.status === "proposed" && t.from_user === user.id) || t.status === "accepted";
+      if (!ok) throw new HttpError(409, "Este intercambio ya no se puede cancelar");
+      await set("cancelled").bind("cancelled", id, t.status).run();
+      return json({ ok: true });
+    }
+
+    // done: se reserva el intercambio para que no se aplique dos veces, se pasan las cartas y se cierra
+    if (t.status !== "accepted") throw new HttpError(409, "Solo se puede completar un acuerdo aceptado");
+    const claim = await set("doing").bind("doing", id, "accepted").run();
+    if (!claim.meta.changes) throw new HttpError(409, "Este acuerdo ya se está completando");
+    try {
+      const users = [t.from_user, t.to_user];
+      const { counts, problems } = await missingItems(env, users, items);
+      if (problems.length) throw new HttpError(409, `No se puede completar: ya no se tienen ${problems.join(", ")}`);
+      const touched = new Set<string>();
+      for (const i of items) {
+        const receiver = i.giver === t.from_user ? t.to_user : t.from_user;
+        const give = { ...(counts.get(`${i.giver}|${i.card_id}`) || {}) };
+        give[i.lang] = (give[i.lang] || 0) - 1;
+        counts.set(`${i.giver}|${i.card_id}`, give);
+        const get = { ...(counts.get(`${receiver}|${i.card_id}`) || {}) };
+        get[i.lang] = Math.min(99, (get[i.lang] || 0) + 1);
+        counts.set(`${receiver}|${i.card_id}`, get);
+        touched.add(`${i.giver}|${i.card_id}`).add(`${receiver}|${i.card_id}`);
+      }
+      const stmts = [...touched].map((k) => {
+        const [u, c] = k.split("|");
+        return writeCounts(env, u, c, counts.get(k)!);
+      });
+      stmts.push(env.DB.prepare("UPDATE trades SET status = 'done', done_by = ?, updated_at = unixepoch() WHERE id = ?").bind(user.id, id));
+      await env.DB.batch(stmts);
+    } catch (e) {
+      await set("accepted").bind("accepted", id, "doing").run();
+      throw e;
+    }
+    return json({ ok: true });
+  }
+  throw new HttpError(404, "No encontrado");
+}
+
 // Copias por idioma guardadas en collection.langs (JSON) o null si están todas en un idioma
 function parseLangs(raw: string | null): Record<string, number> | null {
   if (!raw) return null;
@@ -245,21 +409,13 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
     }
     const n = Object.values(counts).reduce((a, b) => a + b, 0);
     if (n > 99) throw new HttpError(400, "Máximo 99 copias por carta");
-    if (n === 0) {
-      await env.DB.prepare("DELETE FROM collection WHERE user_id = ? AND card_id = ?").bind(user.id, cardId).run();
-    } else {
-      // Idioma principal: el que más copias tiene (en empate, el primero de la lista: español)
-      const main = LANGUAGES.map((l) => l.code).reduce((best, code) => ((counts[code] || 0) > (counts[best] || 0) ? code : best), LANGUAGES[0].code);
-      const langs = Object.keys(counts).length > 1 ? JSON.stringify(counts) : null;
-      await env.DB.prepare(
-        `INSERT INTO collection (user_id, card_id, qty, lang, langs) VALUES (?1, ?2, ?3, ?4, ?5)
-         ON CONFLICT(user_id, card_id) DO UPDATE SET qty = excluded.qty, lang = excluded.lang, langs = excluded.langs, updated_at = unixepoch()`,
-      )
-        .bind(user.id, cardId, n, main, langs)
-        .run();
-    }
+    await writeCounts(env, user.id, cardId, counts).run();
     return json({ ok: true, qty: n, langs: counts });
   }
+
+  // ------------------------------------------------------------ intercambios
+  const tr = await tradeRoutes(env, req, path, user);
+  if (tr) return tr;
 
   // Precio de Cardmarket a mano para cartas sin precio automático. { trend: null, mid: null } lo quita.
   const pm = path.match(/^\/api\/cards\/(.+)\/price$/);

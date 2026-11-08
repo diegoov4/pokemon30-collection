@@ -683,3 +683,93 @@ td.price { white-space: nowrap; text-align: right; color: var(--muted); }
   .buy-form .sealed-row { grid-template-columns: 1fr 1fr; }
   .buy-form .sealed-row .check { grid-column: 1 / -1; order: -1; padding-bottom: 0; }
 }
+
+/* ------- intercambios */
+.trade-btn { position: relative; overflow: visible; background: #f3f3f3; }
+.trade-btn img { border-radius: 50%; padding: 2px; box-sizing: border-box; }
+.trade-btn .badge {
+  position: absolute; top: -4px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px;
+  background: var(--red); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--bg);
+}
+.trade-dialog { width: min(900px, calc(100vw - 32px)); max-height: calc(100dvh - 24px); overflow: auto; }
+.trade-dialog h2 { display: flex; align-items: center; gap: 10px; }
+.trade-logo { background: #f3f3f3; border-radius: 50%; padding: 2px; }
+.trade-tabs { margin-bottom: 14px; }
+.trade-tabs b { margin-left: 4px; color: var(--gold); }
+.trade-dialog h3 { margin: 16px 0 4px; display: flex; align-items: baseline; gap: 8px; }
+.trade-dialog h3 small { color: var(--muted); font-size: 13px; }
+.trade-dialog h4 { margin: 0 0 8px; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; }
+.trade-dialog h4 small { color: var(--gold); }
+.tempty { text-align: center; padding: 30px 10px; color: var(--muted); }
+.tempty img { background: #f3f3f3; border-radius: 50%; padding: 4px; }
+.tpeople { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.tperson { display: flex; align-items: center; gap: 12px; text-align: left; font: inherit; color: inherit; background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; }
+.tperson:hover { border-color: var(--gold); }
+.tperson span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tperson small { color: var(--muted); font-size: 12px; }
+.twith { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.twith .btn { margin-left: auto; }
+.tsides { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tsides > div { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.tsides ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tsides h5 { margin: 0 0 6px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.titem { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.titem .tname { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.titem .tname b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.titem .tname small { color: var(--muted); font-size: 11px; }
+.titem .tval { font-weight: 600; white-space: nowrap; }
+.titem .del { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; }
+.titem .del:hover { color: #fff; background: var(--red); border-color: var(--red); }
+.langtag-inline { font-weight: 700; color: var(--text); }
+.tthumb { flex: none; width: 34px; height: 47px; border-radius: 3px; overflow: hidden; background: linear-gradient(140deg, var(--r1, #3a4785), var(--r2, #1b2550)); display: block; }
+.tthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tbalance { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin: 10px 0; padding: 8px 12px; border-radius: 10px; font-size: 13px; background: var(--bg2); border: 1px solid var(--line); }
+.tbalance .verdict { margin-left: auto; font-weight: 700; }
+.tbalance.fair { border-color: #2fa86a; } .tbalance.fair .verdict { color: #4ade80; }
+.tbalance.up .verdict { color: var(--gold); }
+.tbalance.down { border-color: color-mix(in srgb, var(--red) 60%, var(--line)); } .tbalance.down .verdict { color: #ff7a5c; }
+.twarn { color: #ffb4a3; font-size: 13px; margin: 0 0 8px; }
+.tsugg { margin: 10px 0; padding: 12px; border: 1px dashed color-mix(in srgb, var(--gold) 55%, var(--line)); border-radius: 12px; }
+.tsugg .ts + .ts { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; }
+.tsh { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tsh span { color: var(--muted); font-size: 13px; }
+.tsh .btn { margin-left: auto; }
+.tsugg .hint { margin: 4px 0 6px; font-size: 12px; }
+.tmini { display: flex; gap: 8px; flex-wrap: wrap; }
+.tmini span { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 64px; text-align: center; }
+.tmini small { font-size: 10px; color: var(--muted); line-height: 1.1; }
+.tmini .tthumb { width: 46px; height: 64px; }
+.tpick { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.tpick .pref-check { font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+.tsearch { font: inherit; color: var(--text); background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+.ttiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; max-height: 360px; overflow: auto; padding: 2px; }
+.ttile { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 6px; font: inherit; color: inherit; background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; text-align: center; }
+.ttile .tthumb { width: 62px; height: 86px; }
+.ttile .tn { font-size: 12px; font-weight: 600; line-height: 1.15; }
+.ttile small { font-size: 11px; color: var(--muted); }
+.ttile .tv { color: var(--text); }
+.ttile.on { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold) inset; background: color-mix(in srgb, var(--gold) 10%, var(--bg2)); }
+.tsend { display: flex; gap: 10px; align-items: stretch; margin-top: 14px; position: sticky; bottom: -24px; background: var(--panel); padding: 10px 0; }
+.tsend textarea { flex: 1; font: inherit; font-size: 14px; color: var(--text); background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; resize: vertical; min-height: 42px; }
+.tsend .btn:disabled { opacity: .45; cursor: default; }
+.tcard { background: var(--bg2); border: 1px solid var(--line); border-radius: 14px; padding: 12px; margin-top: 10px; }
+.tcard header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.tcard .twho { flex: 1; display: flex; flex-direction: column; font-weight: 600; }
+.tcard .twho small { color: var(--muted); font-weight: 400; font-size: 12px; }
+.tstatus { font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 99px; background: var(--panel2); }
+.st-proposed .tstatus { background: #3d3108; color: var(--gold); }
+.st-accepted .tstatus, .st-doing .tstatus { background: #0d3a24; color: #4ade80; }
+.st-accepted, .st-doing { border-color: #2fa86a; }
+.st-done .tstatus { background: #1b2550; color: #9fb4ff; }
+.st-rejected .tstatus, .st-cancelled .tstatus, .st-countered .tstatus { color: var(--muted); }
+.tcard .tsides > div { background: var(--panel); }
+.tmsg { margin: 0 0 8px; color: var(--muted); font-style: italic; font-size: 14px; }
+.tactions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.thistory { margin-top: 16px; }
+.thistory summary { cursor: pointer; color: var(--muted); font-weight: 600; }
+@media (max-width: 640px) {
+  .tsides { grid-template-columns: 1fr; }
+  .ttiles { grid-template-columns: repeat(3, 1fr); max-height: 300px; }
+  .ttile .tthumb { width: 54px; height: 75px; }
+  .tsend { flex-direction: column; }
+}
