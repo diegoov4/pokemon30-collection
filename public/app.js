@@ -188,6 +188,7 @@ function toast(msg) {
 // ------------------------------------------------------------- carga
 
 async function load(retry = true) {
+  const started = Date.now();
   const data = await api("/api/data", { retry });
   state.me = data.me;
   state.sets = data.sets;
@@ -201,6 +202,7 @@ async function load(retry = true) {
   if (state.set !== "all" && !state.sets.some((s) => s.id === state.set)) state.set = "all";
   if (!pendingKey) loadPending();
   applyPending();
+  applyRecentWrites(started);
 }
 
 let bootRetry = null;
@@ -725,26 +727,54 @@ async function saveManualPrice(cardId, trend, mid) {
 // ------------------------------------------------------------- acciones
 
 // Guarda las copias por idioma de una carta: se ve al momento y se envía (o va a la cola sin red)
+// Cambios de colección enviándose o recién guardados: cardId -> { snap, dirty, sending, doneAt }.
+// Sirven para que un refresco que salió ANTES del cambio no lo pise al llegar (la cuenta «volvía atrás»).
+const writes = new Map();
+
+function applyRecentWrites(loadStarted) {
+  const me = state.me.id;
+  for (const [cardId, w] of writes) {
+    // Enviándose, o guardado después de pedir estos datos: manda lo local
+    if (w.sending || w.doneAt === null || w.doneAt > loadStarted) setCopies(cardId, me, w.snap);
+    else writes.delete(cardId); // los datos ya incluyen el cambio
+  }
+}
+
+// Guarda las copias por idioma de una carta: se ve al momento y se envía (o va a la cola sin red).
+// Los envíos de una misma carta van en fila y siempre con lo último que ve el usuario,
+// así varios «+» seguidos no pueden llegar desordenados al servidor.
 async function saveCopies(cardId, next) {
   const me = state.me.id;
-  const prev = { ...copies(cardId, me) };
-  const apply = (bd) => {
-    setCopies(cardId, me, bd);
-    render();
-    if ($("#dlg-card").open) openCard(cardId);
-  };
-  apply(next);
+  setCopies(cardId, me, next);
+  render();
+  if ($("#dlg-card").open) openCard(cardId);
   // Si ya había cambios de esta carta en cola (o no hay red), va a la cola para respetar el orden
   if (pending.has(cardId) || !net.online) {
+    writes.delete(cardId);
     queueCard(cardId);
     return flushPending();
   }
+  let w = writes.get(cardId);
+  if (!w) writes.set(cardId, (w = { snap: null, dirty: false, sending: false, doneAt: null }));
+  w.snap = { ...copies(cardId, me) };
+  w.dirty = true;
+  w.doneAt = null;
+  if (w.sending) return; // el envío en curso mandará también esto al terminar
+  w.sending = true;
   try {
-    await api(`/api/collection/${encodeURIComponent(cardId)}`, { method: "PUT", body: JSON.stringify({ langs: copies(cardId, me) }) });
+    while (w.dirty) {
+      w.dirty = false;
+      await api(`/api/collection/${encodeURIComponent(cardId)}`, { method: "PUT", body: JSON.stringify({ langs: w.snap }) });
+    }
+    w.doneAt = Date.now();
   } catch (e) {
+    writes.delete(cardId);
     if (e.offline) return queueCard(cardId);
-    apply(prev);
     toast(`No se pudo guardar: ${e.message}`);
+    // Lo que diga el servidor manda
+    try { await load(); render(); if ($("#dlg-card").open) openCard(cardId); } catch {}
+  } finally {
+    w.sending = false;
   }
 }
 
