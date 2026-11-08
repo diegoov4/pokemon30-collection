@@ -356,13 +356,12 @@ function copiesText(cardId, userId) {
 // Precio de una copia según su idioma (data/languages.json):
 // - español → Cardmarket (lo que usan las tiendas en España)
 // - inglés, japonés, chino → TCGplayer (el que usa Collectr), en $ pasado a €, por el factor del idioma
-// Si no hay precio de TCGplayer se usa Cardmarket y se marca como aproximado.
+// Fuera del español nunca se usa Cardmarket: si no hay precio de TCGplayer, esa copia queda sin precio.
 function langPrice(c, metric, lang) {
   const info = langInfo(lang);
   if (info.source === "tcgplayer") {
     const usd = metric === "cm_mid" ? c.tp_mid ?? c.tp_market : c.tp_market ?? c.tp_mid;
     if (usd != null) return { v: usd * state.usdEur * info.factor, src: "tcgplayer", usd };
-    if (c[metric] != null) return { v: c[metric] * info.factor, src: "fallback" };
     return { v: null, src: null };
   }
   return { v: c[metric] == null ? null : c[metric] * info.factor, src: "cardmarket" };
@@ -383,9 +382,9 @@ function cardPrice(c, metric, userId) {
   return priced ? sum / priced : null;
 }
 
-// ¿El precio mostrado es aproximado? (copias en otro idioma sin precio de TCGplayer)
+// ¿Hay copias de las que no se sabe el precio? (en otro idioma sin precio de TCGplayer)
 const priceIsApprox = (c, metric, userId) =>
-  !!userId && Object.keys(copies(c.id, userId)).some((k) => langPrice(c, metric, k).src === "fallback");
+  !!userId && Object.keys(copies(c.id, userId)).some((k) => langPrice(c, metric, k).v == null);
 
 // «Inglés: 3,20 $ en TCGplayer ≈ 2,78 €» para la ficha
 function foreignPriceText(c, lang) {
@@ -393,8 +392,7 @@ function foreignPriceText(c, lang) {
   const p = langPrice(c, state.me.price_metric, lang);
   const factor = info.factor !== 1 ? ` × ${String(info.factor).replace(".", ",")}` : "";
   if (p.src === "tcgplayer") return `${esc(info.name)}: ${p.usd.toLocaleString("es-ES", { style: "currency", currency: "USD" })} en TCGplayer${factor} ≈ ${price(p.v)}`;
-  if (p.src === "fallback") return `${esc(info.name)}: sin precio en TCGplayer, se usa Cardmarket${factor} (≈ ${price(p.v)})`;
-  return `${esc(info.name)}: sin precio`;
+  return `${esc(info.name)}: sin precio en TCGplayer todavía`;
 }
 
 // Etiqueta de idioma: "EN", o "ES·EN" si hay copias en varios idiomas; nada si todo es español
@@ -414,7 +412,7 @@ function priceTag(c, userId = state.me.id) {
   const foreign = userId && qty(c.id, userId) && hasForeign(c.id, userId);
   const approx = foreign && priceIsApprox(c, metric, userId);
   const src = foreign ? (Object.keys(copies(c.id, userId)).includes("es") ? "Cardmarket (español) y TCGplayer (otros idiomas)" : "TCGplayer") : "Cardmarket";
-  return `<span class="pricetag" title="${metricName(metric)} en ${src}${approx ? ", aproximado: falta precio de TCGplayer" : ""}">${approx ? "≈ " : ""}${price(v)}</span>`;
+  return `<span class="pricetag" title="${metricName(metric)} en ${src}${approx ? ", sin contar las copias que no tienen precio en TCGplayer" : ""}">${approx ? "≈ " : ""}${price(v)}</span>`;
 }
 
 function cardsInScope() {
@@ -1334,14 +1332,21 @@ function rarityMedian(rarity, metric) {
   return rarityMedianCache.med[rarity] ?? null;
 }
 
-// Valor de una copia en un idioma (Cardmarket en español, TCGplayer en el resto) o estimación por rareza
+// Valor de una copia en un idioma (Cardmarket en español, TCGplayer en el resto).
+// Sin precio: estimación con la mediana de su rareza en la misma fuente.
 function unitValue(c, lang) {
   const metric = state.me.price_metric;
   const p = langPrice(c, metric, lang);
-  if (p.v != null) return { v: p.v, est: p.src === "fallback" };
+  if (p.v != null) return { v: p.v, est: false };
   const alt = langPrice(c, metric === "cm_mid" ? "cm_trend" : "cm_mid", lang);
-  if (alt.v != null) return { v: alt.v, est: alt.src === "fallback" };
-  return { v: (rarityMedian(c.rarity, metric) || 0) * langInfo(lang).factor, est: true };
+  if (alt.v != null) return { v: alt.v, est: true };
+  return { v: rarityMedianFor(c.rarity, metric, lang), est: true };
+}
+
+function rarityMedianFor(rarity, metric, lang) {
+  if (langInfo(lang).source !== "tcgplayer") return (rarityMedian(rarity, metric) || 0) * langInfo(lang).factor;
+  const vs = state.cards.filter((x) => x.rarity === rarity).map((x) => langPrice(x, metric, lang).v).filter((v) => v != null).sort((a, b) => a - b);
+  return vs.length ? vs[Math.floor(vs.length / 2)] : 0;
 }
 
 // Qué copia se daría: una que sobre, mejor la que no es en español si así se queda la española
