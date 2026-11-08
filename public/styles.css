@@ -788,3 +788,12 @@ td.price { white-space: nowrap; text-align: right; color: var(--muted); }
 .pricetag.psa.none { background: rgba(0, 0, 0, .55); color: #b8bfd9; font-weight: 500; }
 .psa-mini { height: 11px; width: auto; vertical-align: -1px; background: #fff; border-radius: 3px; padding: 1px 3px; }
 #f-price-metric:disabled { opacity: .45; }
+
+/* ------- tradear desde la ficha */
+.cd .who > div { flex-wrap: nowrap; }
+.cd .who .who-txt { flex: 1; min-width: 0; }
+.cd .who .who-trade { padding: 4px 10px; font-size: 12px; }
+.trade-cta { margin: 0 0 14px; background: linear-gradient(120deg, #e3350d, #b4210a); border-color: #e3350d; color: #fff; }
+.trade-cta:hover { background: linear-gradient(120deg, #f2461d, #c42a10); }
+.trade-cta img { background: #f3f3f3; border-radius: 50%; padding: 1px; }
+.trade-cta small { opacity: .8; font-weight: 500; }

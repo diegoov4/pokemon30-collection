@@ -747,9 +747,10 @@ function openCard(id) {
         <strong>Quién la tiene</strong>
         <div class="who">${
           owners?.size
-            ? state.users.filter((u) => owners.has(u.id)).map((u) => `<div>${avatar(u)} ${esc(u.name)} · ${owners.get(u.id)} copia${owners.get(u.id) > 1 ? "s" : ""} · ${esc(copiesText(c.id, u.id))}</div>`).join("")
+            ? state.users.filter((u) => owners.has(u.id)).map((u) => `<div>${avatar(u)} <span class="who-txt">${esc(u.name)} · ${owners.get(u.id)} copia${owners.get(u.id) > 1 ? "s" : ""} · ${esc(copiesText(c.id, u.id))}</span>${!state.me.is_admin && u.id !== state.me.id ? `<button type="button" class="btn ghost small who-trade" data-trade-card="${esc(c.id)}" data-trade-user="${esc(u.id)}" title="Pedirle esta carta a ${esc(u.name)}">Pedir</button>` : ""}</div>`).join("")
             : `<span class="none" style="color:var(--muted)">Nadie todavía</span>`
         }</div>
+        ${tradeButtonHtml(c)}
         ${state.me.is_admin ? "" : `<div class="stepper" style="max-width:220px">
           <button data-dec="${esc(c.id)}">−</button><span>Tengo <b>${qty(c.id, state.me.id)}</b></span><button class="add" data-inc="${esc(c.id)}">+</button>
         </div>`}
@@ -1466,6 +1467,30 @@ function suggestGive(me, other, want) {
   }
   add("✨ Misma rareza", "Por cada carta que pides, una de tus repes de la misma rareza.", sameRarity);
   return out;
+}
+
+// Botón «Tradear con …» en la ficha: a quien más copias tiene (y más le sobran)
+function bestOwnerFor(cardId) {
+  const me = state.me.id;
+  return collectors()
+    .filter((u) => u.id !== me && qty(cardId, u.id) > 0)
+    .sort((a, b) => qty(cardId, b.id) - qty(cardId, a.id))[0];
+}
+function tradeButtonHtml(c) {
+  if (state.me.is_admin || isOtherSet(c.set_id)) return "";
+  const u = bestOwnerFor(c.id);
+  if (!u) return "";
+  const n = qty(c.id, u.id);
+  return `<button type="button" class="btn trade-cta" data-trade-card="${esc(c.id)}" data-trade-user="${esc(u.id)}"><img src="/trade.svg" alt="" width="22" height="22"> Tradear con ${esc(u.name)}${n > 1 ? ` <small>(tiene ${n})</small>` : ""}</button>`;
+}
+
+// Abre Intercambios con esa persona y la carta ya pedida (las propuestas de la app salen solas)
+function tradeForCard(cardId, userId) {
+  $("#dlg-card").close();
+  trade.tab = "new";
+  $("#dlg-trade").showModal();
+  startTrade(userId, { want: [{ card_id: cardId, lang: spareLang(cardId, userId) }] });
+  loadTrades();
 }
 
 function openTrade(tab) {
@@ -2194,6 +2219,10 @@ function setupUI() {
     if (b) saveManualPrice(b.dataset.priceClear, null, null);
   });
   setupTrades();
+  $("#dlg-card").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-trade-card]");
+    if (b) tradeForCard(b.dataset.tradeCard, b.dataset.tradeUser);
+  });
   $("#btn-spend").addEventListener("click", openSpend);
   $("#spend-body").addEventListener("submit", (e) => {
     const f = e.target.closest("[data-buy-form]");
