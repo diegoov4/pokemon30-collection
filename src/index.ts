@@ -203,6 +203,11 @@ export interface Env {
   IMAGES: R2Bucket;
   APP_NAME: string;
   SYNC_EXTRA_SETS: string;
+  // Clave de Pokémon Price Tracker (secreto en Cloudflare); se aceptan varios nombres
+  PPT_API_KEY?: string;
+  POKEMONPRICETRACKER_API_KEY?: string;
+  POKEMON_PRICE_TRACKER_API_KEY?: string;
+  PRICETRACKER_API_KEY?: string;
 }
 
 interface User {
@@ -241,6 +246,7 @@ export default {
     } else {
       ctx.waitUntil(warmImages(env).then((r) => console.log("images", JSON.stringify(r))));
       ctx.waitUntil(refreshPrices(env).then((r) => console.log("prices", JSON.stringify(r))));
+      ctx.waitUntil(refreshGraded(env).then((r) => console.log("graded", JSON.stringify(r))).catch((e) => console.log("graded error", String(e))));
     }
   },
 } satisfies ExportedHandler<Env>;
@@ -362,7 +368,7 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
     const [sets, cards, users, owned, fx] = await env.DB.batch([
       env.DB.prepare("SELECT id, name, kind, release_date, official, logo FROM sets ORDER BY sort_order, release_date, name"),
       env.DB.prepare(
-        "SELECT id, set_id, number, name, rarity, note, source, image_status, coalesce(image_checked_at, 0) AS img_v, cm_trend, cm_mid, cm_updated, cm_manual, tp_market, tp_mid, tp_updated FROM cards ORDER BY set_id, sort_key, number",
+        "SELECT id, set_id, number, name, rarity, note, source, image_status, coalesce(image_checked_at, 0) AS img_v, cm_trend, cm_mid, cm_updated, cm_manual, tp_market, tp_mid, tp_updated, psa, psa_updated FROM cards ORDER BY set_id, sort_key, number",
       ),
       env.DB.prepare("SELECT id, name, color, avatar, is_admin FROM users ORDER BY is_admin DESC, created_at"),
       env.DB.prepare("SELECT c.user_id, c.card_id, c.qty, c.lang, c.langs FROM collection c JOIN users u ON u.id = c.user_id WHERE u.is_admin = 0"),
@@ -747,6 +753,88 @@ async function refreshFx(env: Env) {
       }
     } catch {}
   }
+}
+
+// ---------------------------------------------------------------- PSA 8/9/10 (Pokémon Price Tracker)
+// Plan gratuito: 100 créditos al día y cada carta con datos de eBay cuesta 2. Cada hora se piden unas pocas,
+// empezando por las más caras, y se recorre el set entero en unos días; luego se vuelve a empezar.
+
+const PPT = "https://www.pokemonpricetracker.com/api/v2";
+const PPT_SETS = [
+  { name: "ME: 30th Celebration", ours: "cel30" },
+  { name: "ME: 30th Celebration Classic Collection", ours: "cel30c" },
+];
+const PPT_BATCH = 8;
+
+const pptKey = (env: Env) => env.PPT_API_KEY || env.POKEMONPRICETRACKER_API_KEY || env.POKEMON_PRICE_TRACKER_API_KEY || env.PRICETRACKER_API_KEY || "";
+
+async function getSetting(env: Env, key: string) {
+  return (await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(key).first<{ value: string }>())?.value ?? null;
+}
+function setSetting(env: Env, key: string, value: string) {
+  return env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, unixepoch()) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at").bind(key, value);
+}
+
+type PptGrade = { count?: number; medianPrice?: number; averagePrice?: number; lastSaleDate?: string; smartMarketPrice?: { price?: number } };
+type PptCard = { name: string; cardNumber: string; ebay?: { salesByGrade?: Record<string, PptGrade> } };
+
+/** Número de la carta en nuestra base: "121/128" → "121", "1/128" → "001"; "R/RGB" se queda igual. */
+function pptMainNumber(n: string) {
+  if (/^[RGB]\/RGB$/i.test(n)) return n.toUpperCase();
+  const m = n.match(/^0*(\d+)/);
+  return m ? m[1].padStart(3, "0") : n;
+}
+
+async function refreshGraded(env: Env) {
+  const key = pptKey(env);
+  if (!key) return { skipped: "sin clave" };
+  const pauseUntil = Number(await getSetting(env, "ppt_pause_until")) || 0;
+  if (pauseUntil > Date.now() / 1000) return { skipped: "límite diario" };
+  const cursor = JSON.parse((await getSetting(env, "ppt_cursor")) || '{"set":0,"offset":0}') as { set: number; offset: number };
+  const set = PPT_SETS[cursor.set % PPT_SETS.length];
+  const url = `${PPT}/cards?set=${encodeURIComponent(set.name)}&includeEbay=true&limit=${PPT_BATCH}&offset=${cursor.offset}&sortBy=price&sortOrder=desc`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${key}` } });
+  const remaining = Number(res.headers.get("X-Ratelimit-Daily-Remaining"));
+  const reset = Number(res.headers.get("X-Ratelimit-Daily-Reset")) || Math.floor(Date.now() / 1000) + 3600;
+  const stmts: D1PreparedStatement[] = [];
+  // Si no queda para otra tanda, se espera al reinicio del contador diario
+  if (res.status === 429 || (Number.isFinite(remaining) && remaining < PPT_BATCH * 2 + 2)) stmts.push(setSetting(env, "ppt_pause_until", String(reset)));
+  if (!res.ok) {
+    if (stmts.length) await env.DB.batch(stmts);
+    return { error: res.status };
+  }
+  const body = (await res.json()) as { data: PptCard[]; metadata?: { hasMore?: boolean } };
+
+  // Cartas nuestras de ese set para emparejar
+  const { results: ours } = await env.DB.prepare("SELECT id, number, name, note FROM cards WHERE set_id = ?").bind(set.ours).all<{ id: string; number: string; name: string; note: string | null }>();
+  const findOurs = (c: PptCard) => {
+    if (set.ours === "cel30") return ours.find((o) => o.number === pptMainNumber(c.cardNumber));
+    // Clásicas: número de la carta original + nombre del Pokémon
+    const num = c.cardNumber.split("/")[0].replace(/^0+/, "");
+    return ours.find((o) => {
+      const orig = (o.note || "").match(/Original: .*?(\d+)(?:\/\d+)?\s*$/)?.[1];
+      const word = o.name.split(" ")[0].toLowerCase();
+      return orig === num && c.name.toLowerCase().includes(word);
+    });
+  };
+  let matched = 0;
+  for (const c of body.data || []) {
+    const o = findOurs(c);
+    if (!o) continue;
+    matched++;
+    const psa: Record<string, { p: number; n: number; d: string | null }> = {};
+    for (const g of ["8", "9", "10"]) {
+      const s = c.ebay?.salesByGrade?.[`psa${g}`];
+      const p = s?.smartMarketPrice?.price || s?.medianPrice || s?.averagePrice;
+      if (s && p) psa[g] = { p: Math.round(p * 100) / 100, n: s.count || 0, d: s.lastSaleDate ? s.lastSaleDate.slice(0, 10) : null };
+    }
+    stmts.push(env.DB.prepare("UPDATE cards SET psa = ?, psa_updated = unixepoch() WHERE id = ?").bind(JSON.stringify(psa), o.id));
+  }
+  // Siguiente tanda: misma colección más adelante, o la siguiente colección desde el principio
+  const next = body.metadata?.hasMore && (body.data || []).length ? { set: cursor.set, offset: cursor.offset + PPT_BATCH } : { set: (cursor.set + 1) % PPT_SETS.length, offset: 0 };
+  stmts.push(setSetting(env, "ppt_cursor", JSON.stringify(next)));
+  await env.DB.batch(stmts);
+  return { set: set.name, offset: cursor.offset, got: (body.data || []).length, matched, remaining };
 }
 
 type TcgdexPricing = { pricing?: { cardmarket?: Record<string, unknown> | null; tcgplayer?: Record<string, unknown> | null } };

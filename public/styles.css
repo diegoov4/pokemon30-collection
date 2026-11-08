@@ -773,3 +773,18 @@ td.price { white-space: nowrap; text-align: right; color: var(--muted); }
   .ttile .tthumb { width: 54px; height: 75px; }
   .tsend { flex-direction: column; }
 }
+
+/* ------- PSA 8/9/10 */
+.grade-pick { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 10px; padding: 2px; background: var(--panel); flex-wrap: wrap; }
+.grade-pick .psa-logo { display: grid; place-items: center; background: #fff; border-radius: 7px; padding: 3px 6px; margin-right: 2px; }
+.grade-pick .psa-logo img { display: block; height: 18px; width: auto; }
+.grade-pick button { font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); background: none; border: 0; border-radius: 7px; padding: 6px 9px; cursor: pointer; }
+.grade-pick button.on { background: #e31837; color: #fff; }
+.grade-pick button[data-grade=""].on { background: var(--panel2); color: var(--text); }
+.grade-pick .grade-only { display: flex; flex-direction: row; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); padding: 0 6px; white-space: nowrap; }
+.grade-pick .grade-only[hidden] { display: none; }
+.pricetag.psa { background: #0f2a6b; color: #fff; }
+.pricetag.psa b { color: #ff6b81; font-size: .85em; margin-right: 2px; }
+.pricetag.psa.none { background: rgba(0, 0, 0, .55); color: #b8bfd9; font-weight: 500; }
+.psa-mini { height: 11px; width: auto; vertical-align: -1px; background: #fff; border-radius: 3px; padding: 1px 3px; }
+#f-price-metric:disabled { opacity: .45; }

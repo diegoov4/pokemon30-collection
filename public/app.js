@@ -17,6 +17,8 @@ const state = {
   owner: "all",
   priceMetric: "cm_trend",
   priceMin: "",
+  grade: localGet("grade") || "", // "" = sin gradear | "8" | "9" | "10"
+  gradeOnly: false,
   priceMax: "",
 };
 
@@ -405,8 +407,37 @@ function langTag(c, userId) {
 
 const metricName = (m) => (m === "cm_mid" ? "Mid" : "Trend");
 
-// Precio elegido por cada usuario, en una esquina de la carta
+// Filas PSA 8/9/10 de la ficha
+function psaRowsHtml(c) {
+  if (!c.psa_updated) return "";
+  return ["10", "9", "8"]
+    .map((g) => {
+      const d = gradedPrice(c, g);
+      return `<dt><img src="/psa.png" alt="PSA" class="psa-mini"> ${g}</dt><dd>${d ? `≈ ${price(d.v)} <small>(${d.usd.toLocaleString("es-ES", { style: "currency", currency: "USD" })} · ${d.n} venta${d.n === 1 ? "" : "s"} en eBay${d.d ? `, última ${new Date(d.d).toLocaleDateString("es-ES")}` : ""})</small>` : `<span style="color:var(--muted)">sin ventas recientes</span>`}</dd>`;
+    })
+    .join("");
+}
+
+// Precio aproximado en PSA 8/9/10: ventas recientes en eBay (cartas en inglés), en $ pasado a €
+function psaData(c) {
+  if (!c.psa) return {};
+  if (typeof c.psa === "string") {
+    try { c.psa = JSON.parse(c.psa); } catch { c.psa = {}; }
+  }
+  return c.psa || {};
+}
+function gradedPrice(c, grade) {
+  const g = psaData(c)[grade];
+  return g ? { v: g.p * state.usdEur, n: g.n, d: g.d, usd: g.p } : null;
+}
+
+// Precio elegido por cada usuario, en una esquina de la carta (o el de PSA si está activado)
 function priceTag(c, userId = state.me.id) {
+  if (state.grade && !state.me.hide_prices) {
+    const g = gradedPrice(c, state.grade);
+    if (!g) return c.psa_updated ? `<span class="pricetag psa none" title="Sin ventas recientes en PSA ${state.grade}">sin PSA ${state.grade}</span>` : "";
+    return `<span class="pricetag psa" title="PSA ${state.grade} · ${g.n} venta${g.n === 1 ? "" : "s"} en eBay${g.d ? `, la última el ${new Date(g.d).toLocaleDateString("es-ES")}` : ""} (cartas en inglés). Aproximado."><b>PSA ${state.grade}</b> ≈ ${price(g.v)}</span>`;
+  }
   const v = cardPrice(c, state.me.price_metric, userId);
   if (state.me.hide_prices || v == null) return "";
   const metric = state.me.price_metric;
@@ -426,8 +457,10 @@ function filtered() {
   return cardsInScope().filter((c) => {
     if (state.rarity && c.rarity !== state.rarity) return false;
     if (q && !`${c.name} ${c.number} ${c.note || ""} ${c.rarity || ""}`.toLowerCase().includes(q)) return false;
+    if (state.grade && state.gradeOnly && !gradedPrice(c, state.grade)) return false;
     if (!state.me.hide_prices && (state.priceMin !== "" || state.priceMax !== "")) {
-      const p = cardPrice(c, state.priceMetric, me);
+      // Con PSA activado, el filtro de precio usa el precio en ese grado
+      const p = state.grade ? gradedPrice(c, state.grade)?.v ?? null : cardPrice(c, state.priceMetric, me);
       if (p == null) return false;
       if (state.priceMin !== "" && p < Number(state.priceMin)) return false;
       if (state.priceMax !== "" && p > Number(state.priceMax)) return false;
@@ -708,7 +741,8 @@ function openCard(id) {
           ${state.me.hide_prices ? "" : `<dt>Trend</dt><dd>${price(cardPrice(c, "cm_trend", state.me.id))}</dd>
           <dt>Mid</dt><dd>${price(cardPrice(c, "cm_mid", state.me.id))}</dd>
           ${foreign.length ? `<dt>Otros idiomas</dt><dd>${foreign.map((k) => foreignPriceText(c, k)).join("<br>")}${Object.keys(mine).length > 1 ? "<br><small>El precio de arriba de la carta es la media por copia.</small>" : ""}</dd>` : ""}
-          ${c.cm_updated ? `<dt>Cardmarket</dt><dd>${c.cm_manual ? "Apuntado a mano" : "Actualizado"} el ${esc(new Date(c.cm_updated).toLocaleDateString("es-ES"))}</dd>` : ""}`}
+          ${c.cm_updated ? `<dt>Cardmarket</dt><dd>${c.cm_manual ? "Apuntado a mano" : "Actualizado"} el ${esc(new Date(c.cm_updated).toLocaleDateString("es-ES"))}</dd>` : ""}
+          ${psaRowsHtml(c)}`}
         </dl>
         <strong>Quién la tiene</strong>
         <div class="who">${
@@ -2055,6 +2089,23 @@ function setupUI() {
   });
   $("#form-member").addEventListener("submit", memberAction);
   setupAlbum();
+  const syncGrade = () => {
+    document.querySelectorAll("[data-grade]").forEach((b) => b.classList.toggle("on", b.dataset.grade === state.grade));
+    $(".grade-only").hidden = !state.grade;
+    $("#f-price-min").title = state.grade ? `Precio mínimo en PSA ${state.grade}` : "Precio mínimo";
+    $("#f-price-max").title = state.grade ? `Precio máximo en PSA ${state.grade}` : "Precio máximo";
+    $("#f-price-metric").disabled = !!state.grade;
+  };
+  document.querySelectorAll("[data-grade]").forEach((b) =>
+    b.addEventListener("click", () => {
+      state.grade = b.dataset.grade;
+      localSet("grade", state.grade);
+      syncGrade();
+      render();
+    }),
+  );
+  $("#f-grade-only").addEventListener("change", (e) => { state.gradeOnly = e.target.checked; render(); });
+  syncGrade();
   $("#f-price-metric").addEventListener("change", (e) => { state.priceMetric = e.target.value; render(); });
   $("#f-price-min").addEventListener("input", (e) => { state.priceMin = e.target.value; render(); });
   $("#f-price-max").addEventListener("input", (e) => { state.priceMax = e.target.value; render(); });

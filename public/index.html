@@ -102,6 +102,14 @@
             <input type="number" id="f-price-min" min="0" step="0.01" inputmode="decimal" placeholder="Mín €" aria-label="Precio mínimo" />
             <input type="number" id="f-price-max" min="0" step="0.01" inputmode="decimal" placeholder="Máx €" aria-label="Precio máximo" />
           </div>
+          <div class="grade-pick" role="group" aria-label="Ver precios en PSA">
+            <span class="psa-logo"><img src="/psa.png" alt="PSA" width="44" height="21" /></span>
+            <button type="button" data-grade="" class="on" title="Precio sin gradear">Normal</button>
+            <button type="button" data-grade="8" title="Precio aproximado en PSA 8">8</button>
+            <button type="button" data-grade="9" title="Precio aproximado en PSA 9">9</button>
+            <button type="button" data-grade="10" title="Precio aproximado en PSA 10">10</button>
+            <label class="grade-only" hidden><input type="checkbox" id="f-grade-only" /> Solo con ventas</label>
+          </div>
           <div class="seg" role="group" aria-label="Vista">
             <button data-view="grid" class="on">Cartas</button>
             <button data-view="table">Tabla</button>
