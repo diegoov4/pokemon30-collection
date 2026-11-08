@@ -355,16 +355,17 @@ function copiesText(cardId, userId) {
 
 // Precio de una copia según su idioma (data/languages.json):
 // - español → Cardmarket (lo que usan las tiendas en España)
-// - inglés, japonés, chino → TCGplayer (el que usa Collectr), en $ pasado a €, por el factor del idioma
-// Fuera del español nunca se usa Cardmarket: si no hay precio de TCGplayer, esa copia queda sin precio.
+// - inglés → TCGplayer (el que usa Collectr), en $ pasado a €
+// - japonés, chino… → no hay precio específico: Cardmarket como aproximado
+// Si una copia en inglés aún no tiene precio de TCGplayer, también se usa Cardmarket como aproximado.
 function langPrice(c, metric, lang) {
   const info = langInfo(lang);
   if (info.source === "tcgplayer") {
     const usd = metric === "cm_mid" ? c.tp_mid ?? c.tp_market : c.tp_market ?? c.tp_mid;
-    if (usd != null) return { v: usd * state.usdEur * info.factor, src: "tcgplayer", usd };
-    return { v: null, src: null };
+    if (usd != null) return { v: usd * state.usdEur, src: "tcgplayer", usd };
   }
-  return { v: c[metric] == null ? null : c[metric] * info.factor, src: "cardmarket" };
+  if (c[metric] == null) return { v: null, src: null };
+  return { v: c[metric], src: info.source === "cardmarket" ? "cardmarket" : "approx" };
 }
 
 // Precio por copia de la carta de un usuario (media si tiene copias en varios idiomas: total = copias × precio).
@@ -382,17 +383,17 @@ function cardPrice(c, metric, userId) {
   return priced ? sum / priced : null;
 }
 
-// ¿Hay copias de las que no se sabe el precio? (en otro idioma sin precio de TCGplayer)
+// ¿Alguna copia usa Cardmarket como aproximado? (japonés, chino, o inglés aún sin precio de TCGplayer)
 const priceIsApprox = (c, metric, userId) =>
-  !!userId && Object.keys(copies(c.id, userId)).some((k) => langPrice(c, metric, k).v == null);
+  !!userId && Object.keys(copies(c.id, userId)).some((k) => langPrice(c, metric, k).src === "approx");
 
-// «Inglés: 3,20 $ en TCGplayer ≈ 2,78 €» para la ficha
+// «Inglés: 3,20 US$ en TCGplayer ≈ 2,78 €» para la ficha
 function foreignPriceText(c, lang) {
   const info = langInfo(lang);
   const p = langPrice(c, state.me.price_metric, lang);
-  const factor = info.factor !== 1 ? ` × ${String(info.factor).replace(".", ",")}` : "";
-  if (p.src === "tcgplayer") return `${esc(info.name)}: ${p.usd.toLocaleString("es-ES", { style: "currency", currency: "USD" })} en TCGplayer${factor} ≈ ${price(p.v)}`;
-  return `${esc(info.name)}: sin precio en TCGplayer todavía`;
+  if (p.src === "tcgplayer") return `${esc(info.name)}: ${p.usd.toLocaleString("es-ES", { style: "currency", currency: "USD" })} en TCGplayer ≈ ${price(p.v)}`;
+  const why = info.source === "tcgplayer" ? "aún sin precio en TCGplayer" : `no hay precio específico en ${info.name.toLowerCase()}`;
+  return p.v == null ? `${esc(info.name)}: ${esc(why)} ni en Cardmarket` : `${esc(info.name)}: ${esc(why)}; aproximado con Cardmarket ≈ ${price(p.v)}`;
 }
 
 // Etiqueta de idioma: "EN", o "ES·EN" si hay copias en varios idiomas; nada si todo es español
@@ -411,8 +412,8 @@ function priceTag(c, userId = state.me.id) {
   const metric = state.me.price_metric;
   const foreign = userId && qty(c.id, userId) && hasForeign(c.id, userId);
   const approx = foreign && priceIsApprox(c, metric, userId);
-  const src = foreign ? (Object.keys(copies(c.id, userId)).includes("es") ? "Cardmarket (español) y TCGplayer (otros idiomas)" : "TCGplayer") : "Cardmarket";
-  return `<span class="pricetag" title="${metricName(metric)} en ${src}${approx ? ", sin contar las copias que no tienen precio en TCGplayer" : ""}">${approx ? "≈ " : ""}${price(v)}</span>`;
+  const src = foreign ? "Cardmarket (español) y TCGplayer (inglés)" : "Cardmarket";
+  return `<span class="pricetag" title="${metricName(metric)} en ${src}${approx ? ". Aproximado: alguna copia no tiene precio específico de su idioma y se usa Cardmarket" : ""}">${approx ? "≈ " : ""}${price(v)}</span>`;
 }
 
 function cardsInScope() {
@@ -1337,16 +1338,10 @@ function rarityMedian(rarity, metric) {
 function unitValue(c, lang) {
   const metric = state.me.price_metric;
   const p = langPrice(c, metric, lang);
-  if (p.v != null) return { v: p.v, est: false };
+  if (p.v != null) return { v: p.v, est: p.src === "approx" };
   const alt = langPrice(c, metric === "cm_mid" ? "cm_trend" : "cm_mid", lang);
   if (alt.v != null) return { v: alt.v, est: true };
-  return { v: rarityMedianFor(c.rarity, metric, lang), est: true };
-}
-
-function rarityMedianFor(rarity, metric, lang) {
-  if (langInfo(lang).source !== "tcgplayer") return (rarityMedian(rarity, metric) || 0) * langInfo(lang).factor;
-  const vs = state.cards.filter((x) => x.rarity === rarity).map((x) => langPrice(x, metric, lang).v).filter((v) => v != null).sort((a, b) => a - b);
-  return vs.length ? vs[Math.floor(vs.length / 2)] : 0;
+  return { v: rarityMedian(c.rarity, metric) || 0, est: true };
 }
 
 // Qué copia se daría: una que sobre, mejor la que no es en español si así se queda la española
@@ -1802,7 +1797,7 @@ function renderSpend() {
       <thead><tr><th>Persona</th><th>Gastado</th><th>Valor cartas</th>${anySealed ? "<th>Sellado</th>" : ""}<th>Beneficio</th></tr></thead>
       <tbody>${rows.map((r) => `<tr class="${r.u.id === me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}${r.u.id === me.id ? " (tú)" : ""}</td><td>${euros.format(r.spent)}</td><td>${euros.format(r.cards)}</td>${anySealed ? `<td>${r.sealed ? euros.format(r.sealed) : "—"}</td>` : ""}<td class="${r.profit >= 0 ? "pos" : "neg"}">${signed(r.profit)}</td></tr>`).join("")}</tbody>
     </table>
-    <p class="hint">El valor de las cartas es el de Cardmarket (${metric}) para las copias en español y el de TCGplayer (el que usa Collectr) para las de otros idiomas, más el valor que cada uno ha puesto a lo que guarda sellado (ETB y UPC). Es una estimación: vender tiene comisiones y envíos.</p>
+    <p class="hint">El valor de las cartas es el de Cardmarket (${metric}) para las copias en español, el de TCGplayer (el que usa Collectr) para las inglesas y Cardmarket como aproximado para japonés y chino, más el valor que cada uno ha puesto a lo que guarda sellado (ETB y UPC). Es una estimación: vender tiene comisiones y envíos.</p>
     <h3>${me.is_admin ? "Compras del grupo" : "Mis compras"}</h3>
     <p class="hint">${me.is_admin ? "Toca un producto para ver lo que ha pagado cada uno." : "Toca un producto y añade lo que pagaste. Si compraste varios a precios distintos, añade una compra por cada precio."}</p>
     <div class="prods">${productsHtml}</div>`;
