@@ -447,8 +447,46 @@ function priceTag(c, userId = state.me.id) {
   return `<span class="pricetag" title="${metricName(metric)} en ${src}${approx ? ". Aproximado: alguna copia no tiene precio específico de su idioma y se usa Cardmarket" : ""}">${approx ? "≈ " : ""}${price(v)}</span>`;
 }
 
+// Vitrina de los Mew RGB: brillan los que tiene alguien, apagados los que no
+function renderVault() {
+  const el = $("#vault");
+  const rgb = state.cards.filter(isSpecial).sort((a, b) => "RGB".indexOf(a.number[0]) - "RGB".indexOf(b.number[0]));
+  el.hidden = !rgb.length;
+  if (!rgb.length) return;
+  const metric = state.me.price_metric;
+  const total = rgb.reduce((a, c) => a + (c[metric] ?? c.cm_trend ?? 0), 0);
+  const owned = rgb.filter((c) => state.owned.get(c.id)?.size).length;
+  const tone = { R: "#ff3b3b", G: "#2bd96b", B: "#3b8bff" };
+  el.innerHTML = `<div class="vault-head">
+      <span class="vault-title">✨ Los Mew RGB <small>· El santo grial</small></span>
+      <span class="vault-sub">${owned ? `${owned} de 3 en el grupo` : "Nadie los tiene… todavía 👀"} · juntos valen <b>${price(total)}</b></span>
+    </div>
+    <div class="vault-cards">${rgb
+      .map((c) => {
+        const owners = collectors().filter((u) => qty(c.id, u.id));
+        const v = c[metric] ?? c.cm_trend;
+        const psa = gradedPrice(c, "10");
+        const img = c.image_status === "missing" || brokenImages.has(c.id) ? "" : `<img src="${esc(imgUrl(c))}" alt="" loading="lazy" onerror="this.remove()">`;
+        return `<button type="button" class="vault-card ${owners.length ? "got" : "nope"}" style="--tone:${tone[c.number[0]] || "#fff"}" data-open="${esc(c.id)}" aria-label="${esc(c.name)}">
+          <span class="vault-art">${img}<span class="vault-letter">${esc(c.number[0])}</span></span>
+          <span class="vault-info">
+            <b>${esc(c.name)}</b>
+            <span class="vault-price">${v != null ? price(v) : "—"}</span>
+            ${psa ? `<small><img src="/psa.png" alt="PSA" class="psa-mini"> 10 ≈ ${price(psa.v)}</small>` : ""}
+            <span class="vault-own">${owners.length ? `🏆 ${owners.map((u) => `${avatar(u)} ${esc(u.name)}`).join(" ")}` : "Nadie… todavía 👀"}</span>
+          </span>
+        </button>`;
+      })
+      .join("")}</div>`;
+}
+
+// Los 3 Mew RGB son especiales: fuera de la colección (ni total, ni porcentaje, ni álbum, ni lista),
+// con su propia vitrina. Su valor sí cuenta para quien los tenga.
+const isSpecial = (c) => c.rarity === "Rara RGB";
+const regularCards = () => state.cards.filter((c) => !isSpecial(c));
+
 function cardsInScope() {
-  return state.set === "all" ? state.cards : state.cards.filter((c) => c.set_id === state.set);
+  return state.set === "all" ? regularCards() : regularCards().filter((c) => c.set_id === state.set);
 }
 
 function filtered() {
@@ -555,7 +593,8 @@ function summaryBlock(cards, ids, { sort = false, jump = null } = {}) {
 function renderSummary() {
   // Con «Todas», arriba va solo la colección base y las promos tienen su propio bloque debajo
   const all = state.set === "all";
-  const base = all ? state.cards.filter((c) => !isPromoSet(c.set_id) && !isOtherSet(c.set_id)) : cardsInScope();
+  const base = all ? regularCards().filter((c) => !isPromoSet(c.set_id) && !isOtherSet(c.set_id)) : cardsInScope();
+  renderVault();
   $("#group-label").textContent = all ? "Colección base · entre todos" : isPromoSet(state.set) ? "Promos · entre todos" : "Entre todos";
   summaryBlock(base, { count: "group-count", bar: "group-bar", sub: "group-sub", members: "members" }, { sort: true });
 
@@ -616,8 +655,8 @@ function renderTypeSummaries() {
 }
 
 function renderSets() {
-  const chip = (s) => ({ id: s.id, name: s.name, kind: s.kind, n: state.cards.filter((c) => c.set_id === s.id).length });
-  const chips = [{ id: "all", name: "Todas", n: state.cards.length }].concat(state.sets.filter((s) => s.kind !== "other").map(chip));
+  const chip = (s) => ({ id: s.id, name: s.name, kind: s.kind, n: regularCards().filter((c) => c.set_id === s.id).length });
+  const chips = [{ id: "all", name: "Todas", n: regularCards().length }].concat(state.sets.filter((s) => s.kind !== "other").map(chip));
   const setChip = (s) =>
     `<button class="chip ${s.kind === "other" ? "other" : ""} ${state.set === s.id ? "on" : ""}" data-set="${esc(s.id)}" role="tab">${s.kind === "other" ? SLAB_ICON : ""}${esc(s.name)}<b>${s.n}</b></button>`;
   $("#sets").innerHTML = chips.map(setChip).join("") +
@@ -907,7 +946,7 @@ function albumQty(cardId) {
 }
 
 function albumCards() {
-  return state.sets.filter((s) => album.set === "all" || s.id === album.set).flatMap((s) => state.cards.filter((c) => c.set_id === s.id));
+  return state.sets.filter((s) => album.set === "all" || s.id === album.set).flatMap((s) => regularCards().filter((c) => c.set_id === s.id));
 }
 
 // Portada, interior, una hoja de fundas por cada 9 cartas en orden, guarda y contraportada
@@ -916,7 +955,7 @@ function albumPages() {
   let number = 0;
   for (const set of state.sets) {
     if (album.set !== "all" && set.id !== album.set) continue;
-    const cards = state.cards.filter((c) => c.set_id === set.id);
+    const cards = regularCards().filter((c) => c.set_id === set.id);
     for (let i = 0; i < cards.length; i += ALBUM_POCKETS) pages.push({ kind: "pockets", set, cards: cards.slice(i, i + ALBUM_POCKETS), number: ++number });
   }
   if (pages.length % 2) pages.push({ kind: "blank" });
@@ -1399,7 +1438,7 @@ const sumValue = (items) => items.reduce((a, i) => a + itemValue(i).v, 0);
 
 // Mis repes que al otro le faltan (lo sensato para dar), sin las que ya van en la propuesta
 function givePool(me, other, exclude) {
-  return state.cards
+  return regularCards()
     .filter((c) => qty(c.id, me) >= 2 && !qty(c.id, other) && !exclude.has(c.id) && !isOtherSet(c.set_id))
     .map((c) => {
       const lang = spareLang(c.id, me);
