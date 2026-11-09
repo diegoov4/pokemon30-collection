@@ -765,6 +765,10 @@ const PPT_SETS = [
   { name: "ME: 30th Celebration Classic Collection", ours: "cel30c" },
 ];
 const PPT_BATCH = 8;
+// Las cartas por debajo de este precio (USD) casi nunca se venden gradeadas: no se gastan créditos en ellas
+const PPT_MIN_PRICE = 2;
+// Al terminar una vuelta completa a todas las cartas, se descansa unos días antes de empezar otra
+const PPT_REST_DAYS = 3;
 
 const pptKey = (env: Env) => env.PPT_API_KEY || env.POKEMONPRICETRACKER_API_KEY || env.POKEMON_PRICE_TRACKER_API_KEY || env.PRICETRACKER_API_KEY || "";
 
@@ -790,9 +794,11 @@ async function refreshGraded(env: Env) {
   if (!key) return { skipped: "sin clave" };
   const pauseUntil = Number(await getSetting(env, "ppt_pause_until")) || 0;
   if (pauseUntil > Date.now() / 1000) return { skipped: "límite diario" };
+  const restUntil = Number(await getSetting(env, "ppt_rest_until")) || 0;
+  if (restUntil > Date.now() / 1000) return { skipped: "descanso tras vuelta completa" };
   const cursor = JSON.parse((await getSetting(env, "ppt_cursor")) || '{"set":0,"offset":0}') as { set: number; offset: number };
   const set = PPT_SETS[cursor.set % PPT_SETS.length];
-  const url = `${PPT}/cards?set=${encodeURIComponent(set.name)}&includeEbay=true&limit=${PPT_BATCH}&offset=${cursor.offset}&sortBy=price&sortOrder=desc`;
+  const url = `${PPT}/cards?set=${encodeURIComponent(set.name)}&includeEbay=true&limit=${PPT_BATCH}&offset=${cursor.offset}&sortBy=price&sortOrder=desc&minPrice=${PPT_MIN_PRICE}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${key}` } });
   const remaining = Number(res.headers.get("X-Ratelimit-Daily-Remaining"));
   const reset = Number(res.headers.get("X-Ratelimit-Daily-Reset")) || Math.floor(Date.now() / 1000) + 3600;
@@ -833,6 +839,10 @@ async function refreshGraded(env: Env) {
   // Siguiente tanda: misma colección más adelante, o la siguiente colección desde el principio
   const next = body.metadata?.hasMore && (body.data || []).length ? { set: cursor.set, offset: cursor.offset + PPT_BATCH } : { set: (cursor.set + 1) % PPT_SETS.length, offset: 0 };
   stmts.push(setSetting(env, "ppt_cursor", JSON.stringify(next)));
+  // Vuelta completa (se pasa de la última colección a la primera): descanso antes de la siguiente
+  if (next.set === 0 && next.offset === 0 && cursor.set === PPT_SETS.length - 1) {
+    stmts.push(setSetting(env, "ppt_rest_until", String(Math.floor(Date.now() / 1000) + PPT_REST_DAYS * 86400)));
+  }
   await env.DB.batch(stmts);
   return { set: set.name, offset: cursor.offset, got: (body.data || []).length, matched, remaining };
 }

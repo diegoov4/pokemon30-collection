@@ -18,7 +18,6 @@ const state = {
   priceMetric: "cm_trend",
   priceMin: "",
   grade: "", // "" = sin gradear | "8" | "9" | "10" (no se recuerda al recargar)
-  gradeOnly: false,
   priceMax: "",
 };
 
@@ -521,7 +520,8 @@ function filtered() {
   return cardsInScope().filter((c) => {
     if (state.rarity && c.rarity !== state.rarity) return false;
     if (q && !`${c.name} ${c.number} ${c.note || ""} ${c.rarity || ""}`.toLowerCase().includes(q)) return false;
-    if (state.grade && state.gradeOnly && !gradedPrice(c, state.grade)) return false;
+    // Con PSA 8/9/10 elegido solo salen las cartas que tienen precio en ese grado
+    if (state.grade && !gradedPrice(c, state.grade)) return false;
     if (!state.me.hide_prices && (state.priceMin !== "" || state.priceMax !== "")) {
       // Con PSA activado, el filtro de precio usa el precio en ese grado
       const p = state.grade ? gradedPrice(c, state.grade)?.v ?? null : cardPrice(c, state.priceMetric, me);
@@ -2181,10 +2181,8 @@ function setupUI() {
   setupAlbum();
   // El navegador a veces rellena solo los campos al recargar: se dejan vacíos para empezar sin filtros
   for (const id of ["q", "f-price-min", "f-price-max"]) $(`#${id}`).value = "";
-  $("#f-grade-only").checked = false;
   const syncGrade = () => {
     document.querySelectorAll("[data-grade]").forEach((b) => b.classList.toggle("on", b.dataset.grade === state.grade));
-    $(".grade-only").hidden = !state.grade;
     $("#f-price-min").title = state.grade ? `Precio mínimo en PSA ${state.grade}` : "Precio mínimo";
     $("#f-price-max").title = state.grade ? `Precio máximo en PSA ${state.grade}` : "Precio máximo";
     $("#f-price-metric").disabled = !!state.grade;
@@ -2192,11 +2190,12 @@ function setupUI() {
   document.querySelectorAll("[data-grade]").forEach((b) =>
     b.addEventListener("click", () => {
       state.grade = b.dataset.grade;
+      // Al elegir un grado se mira en todas las colecciones a la vez
+      if (state.grade) state.set = "all";
       syncGrade();
       render();
     }),
   );
-  $("#f-grade-only").addEventListener("change", (e) => { state.gradeOnly = e.target.checked; render(); });
   syncGrade();
   $("#f-price-metric").addEventListener("change", (e) => { state.priceMetric = e.target.value; render(); });
   $("#f-price-min").addEventListener("input", (e) => { state.priceMin = e.target.value; render(); });
