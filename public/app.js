@@ -460,6 +460,7 @@ function renderVault() {
   el.innerHTML = `<div class="vault-head">
       <span class="vault-title">✨ Los Mew RGB <small>· El santo grial</small></span>
       <span class="vault-sub">${owned ? `${owned} de 3 en el grupo` : "Nadie los tiene… todavía 👀"} · juntos valen <b>${price(total)}</b></span>
+      <span class="vault-hint" aria-hidden="true">${matchMedia("(hover: hover)").matches ? "Pasa el ratón para verlos" : "Mantén pulsado para verlos"} <i>👆</i></span>
     </div>
     <div class="vault-cards">${rgb
       .map((c) => {
@@ -478,6 +479,31 @@ function renderVault() {
         </button>`;
       })
       .join("")}</div>`;
+}
+
+// La vitrina está plegada: se abre con fundido mientras el ratón está encima o el dedo/clic se mantiene pulsado
+function setupVault() {
+  const el = $("#vault");
+  el.classList.add("closed");
+  let pressed = false;
+  const open = () => el.classList.remove("closed");
+  const close = () => el.classList.add("closed");
+  el.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") open(); });
+  el.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse" && !pressed) close(); });
+  el.addEventListener("pointerdown", () => { pressed = true; open(); });
+  const release = (e) => {
+    if (!pressed) return;
+    pressed = false;
+    // Con el ratón sigue abierta mientras esté encima; con el dedo se cierra al soltar
+    if (e.pointerType !== "mouse" || !el.matches(":hover")) close();
+  };
+  addEventListener("pointerup", release);
+  addEventListener("pointercancel", release);
+  el.addEventListener("contextmenu", (e) => e.preventDefault()); // sin menú al mantener pulsado en el móvil
+  // Teclado: con el foco dentro se ve
+  el.tabIndex = 0;
+  el.addEventListener("focusin", open);
+  el.addEventListener("focusout", () => { if (!el.matches(":hover")) close(); });
 }
 
 // Los 3 Mew RGB son especiales: fuera de la colección (ni total, ni porcentaje, ni álbum, ni lista),
@@ -2264,6 +2290,7 @@ function setupUI() {
     const b = e.target.closest("[data-trade-card]");
     if (b) tradeForCard(b.dataset.tradeCard, b.dataset.tradeUser);
   });
+  setupVault();
   $("#btn-spend").addEventListener("click", openSpend);
   $("#spend-body").addEventListener("submit", (e) => {
     const f = e.target.closest("[data-buy-form]");
