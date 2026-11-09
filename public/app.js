@@ -11,13 +11,13 @@ const state = {
   copies: new Map(), // cardId -> Map(userId -> { es: 2, en: 1 }) copias por idioma
   owned: new Map(), // cardId -> Map(userId -> qty)
   view: localGet("view") || "grid",
-  set: localGet("set") || "all",
+  set: "all", // al recargar se empieza siempre sin filtros
   q: "",
   rarity: "",
   owner: "all",
   priceMetric: "cm_trend",
   priceMin: "",
-  grade: localGet("grade") || "", // "" = sin gradear | "8" | "9" | "10"
+  grade: "", // "" = sin gradear | "8" | "9" | "10" (no se recuerda al recargar)
   gradeOnly: false,
   priceMax: "",
 };
@@ -583,7 +583,7 @@ const chipTypes = () => cardTypes().filter((t) => !t.summaryOnly);
 
 // Icono propio de «para gradear»: una carta dentro de una funda rígida con etiqueta
 const SLAB_ICON = `<svg class="slab" viewBox="0 0 16 20" width="12" height="15" aria-hidden="true"><rect x="1" y="1" width="14" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="3" width="10" height="3.5" rx=".8" fill="#e3350d"/><rect x="4" y="8.5" width="8" height="8.5" rx=".8" fill="currentColor" opacity=".55"/></svg>`;
-let typesOpen = localGet("typesOpen") === "1";
+let typesOpen = false; // el progreso por tipo empieza siempre plegado
 
 function renderTypeSummaries() {
   const types = cardTypes();
@@ -2114,6 +2114,9 @@ function setupUI() {
   });
   $("#form-member").addEventListener("submit", memberAction);
   setupAlbum();
+  // El navegador a veces rellena solo los campos al recargar: se dejan vacíos para empezar sin filtros
+  for (const id of ["q", "f-price-min", "f-price-max"]) $(`#${id}`).value = "";
+  $("#f-grade-only").checked = false;
   const syncGrade = () => {
     document.querySelectorAll("[data-grade]").forEach((b) => b.classList.toggle("on", b.dataset.grade === state.grade));
     $(".grade-only").hidden = !state.grade;
@@ -2124,7 +2127,6 @@ function setupUI() {
   document.querySelectorAll("[data-grade]").forEach((b) =>
     b.addEventListener("click", () => {
       state.grade = b.dataset.grade;
-      localSet("grade", state.grade);
       syncGrade();
       render();
     }),
@@ -2185,15 +2187,15 @@ function setupUI() {
     else if (d.rar) {
       // Atajo por tipo: activa/desactiva la rareza; si la colección elegida no tiene ese tipo, se pasa a «Todas»
       state.rarity = state.rarity === d.rar ? "" : d.rar;
-      if (state.rarity && !cardsInScope().some((c) => c.rarity === state.rarity)) { state.set = "all"; localSet("set", "all"); }
+      if (state.rarity && !cardsInScope().some((c) => c.rarity === state.rarity)) { state.set = "all"; }
       render();
     }
-    else if (d.set) { state.set = d.set; localSet("set", d.set); render(); }
+    else if (d.set) { state.set = d.set; render(); }
     else if (d.user) {
       // Desde el bloque de promos: se salta a la colección de promos y se empieza por «lo que tiene»
       const jumpRarity = d.userRarity !== undefined && state.rarity !== d.userRarity;
       if ((d.userSet && state.set !== d.userSet) || jumpRarity) {
-        if (d.userSet) { state.set = d.userSet; localSet("set", d.userSet); }
+        if (d.userSet) state.set = d.userSet;
         if (d.userRarity !== undefined) state.rarity = d.userRarity;
         state.owner = "all";
       }
@@ -2240,7 +2242,6 @@ function setupUI() {
   }, true);
   $("#btn-types").addEventListener("click", () => {
     typesOpen = !typesOpen;
-    localSet("typesOpen", typesOpen ? "1" : "0");
     renderSummary();
   });
   $("#f-rarity").addEventListener("change", (e) => { state.rarity = e.target.value; render(); });

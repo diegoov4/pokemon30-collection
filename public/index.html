@@ -91,16 +91,16 @@
       <section class="toolbar">
         <div class="sets" id="sets" role="tablist"></div>
         <div class="filters">
-          <input type="search" id="q" placeholder="Buscar por nombre, número o ilustrador…" />
-          <select id="f-rarity"><option value="">Todas las rarezas</option></select>
-          <select id="f-owner"></select>
+          <input type="search" id="q" autocomplete="off" placeholder="Buscar por nombre, número o ilustrador…" />
+          <select id="f-rarity" autocomplete="off"><option value="">Todas las rarezas</option></select>
+          <select id="f-owner" autocomplete="off"></select>
           <div class="price-filter" role="group" aria-label="Filtrar por precio de Cardmarket">
-            <select id="f-price-metric" aria-label="Precio">
+            <select id="f-price-metric" autocomplete="off" aria-label="Precio">
               <option value="cm_trend">Trend</option>
               <option value="cm_mid">Mid</option>
             </select>
-            <input type="number" id="f-price-min" min="0" step="0.01" inputmode="decimal" placeholder="Mín €" aria-label="Precio mínimo" />
-            <input type="number" id="f-price-max" min="0" step="0.01" inputmode="decimal" placeholder="Máx €" aria-label="Precio máximo" />
+            <input type="number" id="f-price-min" autocomplete="off" min="0" step="0.01" inputmode="decimal" placeholder="Mín €" aria-label="Precio mínimo" />
+            <input type="number" id="f-price-max" autocomplete="off" min="0" step="0.01" inputmode="decimal" placeholder="Máx €" aria-label="Precio máximo" />
           </div>
           <div class="grade-pick" role="group" aria-label="Ver precios en PSA">
             <span class="psa-logo"><img src="/psa.png" alt="PSA" width="44" height="21" /></span>
@@ -108,7 +108,7 @@
             <button type="button" data-grade="8" title="Precio aproximado en PSA 8">8</button>
             <button type="button" data-grade="9" title="Precio aproximado en PSA 9">9</button>
             <button type="button" data-grade="10" title="Precio aproximado en PSA 10">10</button>
-            <label class="grade-only" hidden><input type="checkbox" id="f-grade-only" /> Solo con ventas</label>
+            <label class="grade-only" hidden><input type="checkbox" id="f-grade-only" autocomplete="off" /> Solo con ventas</label>
           </div>
           <div class="seg" role="group" aria-label="Vista">
             <button data-view="grid" class="on">Cartas</button>
