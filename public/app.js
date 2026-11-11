@@ -446,72 +446,13 @@ function priceTag(c, userId = state.me.id) {
   return `<span class="pricetag" title="${metricName(metric)} en ${src}${approx ? ". Aproximado: alguna copia no tiene precio específico de su idioma y se usa Cardmarket" : ""}">${approx ? "≈ " : ""}${price(v)}</span>`;
 }
 
-// Vitrina de los Mew RGB: brillan los que tiene alguien, apagados los que no
-function renderVault() {
-  const el = $("#vault");
-  const rgb = state.cards.filter(isSpecial).sort((a, b) => "RGB".indexOf(a.number[0]) - "RGB".indexOf(b.number[0]));
-  el.hidden = !rgb.length;
-  if (!rgb.length) return;
-  const metric = state.me.price_metric;
-  const total = rgb.reduce((a, c) => a + (c[metric] ?? c.cm_trend ?? 0), 0);
-  const owned = rgb.filter((c) => state.owned.get(c.id)?.size).length;
-  const tone = { R: "#ff3b3b", G: "#2bd96b", B: "#3b8bff" };
-  el.innerHTML = `<div class="vault-head">
-      <span class="vault-title">✨ Los Mew RGB <small>· El santo grial</small></span>
-      <span class="vault-sub">${owned ? `${owned} de 3 en el grupo` : "Nadie los tiene… todavía 👀"} · juntos valen <b>${price(total)}</b></span>
-      <span class="vault-hint" aria-hidden="true">${matchMedia("(hover: hover)").matches ? "Pasa el ratón para verlos" : "Mantén pulsado para verlos"} <i>👆</i></span>
-    </div>
-    <div class="vault-cards">${rgb
-      .map((c) => {
-        const owners = collectors().filter((u) => qty(c.id, u.id));
-        const v = c[metric] ?? c.cm_trend;
-        const psa = gradedPrice(c, "10");
-        const img = c.image_status === "missing" || brokenImages.has(c.id) ? "" : `<img src="${esc(imgUrl(c))}" alt="" loading="lazy" onerror="this.remove()">`;
-        return `<button type="button" class="vault-card ${owners.length ? "got" : "nope"}" style="--tone:${tone[c.number[0]] || "#fff"}" data-open="${esc(c.id)}" aria-label="${esc(c.name)}">
-          <span class="vault-art">${img}<span class="vault-letter">${esc(c.number[0])}</span></span>
-          <span class="vault-info">
-            <b>${esc(c.name)}</b>
-            <span class="vault-price">${v != null ? price(v) : "—"}</span>
-            ${psa ? `<small><img src="/psa.png" alt="PSA" class="psa-mini"> 10 ≈ ${price(psa.v)}</small>` : ""}
-            <span class="vault-own">${owners.length ? `🏆 ${owners.map((u) => `${avatar(u)} ${esc(u.name)}`).join(" ")}` : "Nadie… todavía 👀"}</span>
-          </span>
-        </button>`;
-      })
-      .join("")}</div>`;
-}
-
-// La vitrina está plegada: se abre con fundido mientras el ratón está encima o el dedo/clic se mantiene pulsado
-function setupVault() {
-  const el = $("#vault");
-  el.classList.add("closed");
-  let pressed = false;
-  const open = () => el.classList.remove("closed");
-  const close = () => el.classList.add("closed");
-  el.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") open(); });
-  el.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse" && !pressed) close(); });
-  el.addEventListener("pointerdown", () => { pressed = true; open(); });
-  const release = (e) => {
-    if (!pressed) return;
-    pressed = false;
-    // Con el ratón sigue abierta mientras esté encima; con el dedo se cierra al soltar
-    if (e.pointerType !== "mouse" || !el.matches(":hover")) close();
-  };
-  addEventListener("pointerup", release);
-  addEventListener("pointercancel", release);
-  el.addEventListener("contextmenu", (e) => e.preventDefault()); // sin menú al mantener pulsado en el móvil
-  // Teclado: con el foco dentro se ve
-  el.tabIndex = 0;
-  el.addEventListener("focusin", open);
-  el.addEventListener("focusout", () => { if (!el.matches(":hover")) close(); });
-}
-
-// Los 3 Mew RGB son especiales: fuera de la colección (ni total, ni porcentaje, ni álbum, ni lista),
-// con su propia vitrina. Su valor sí cuenta para quien los tenga.
+// Los 3 Mew RGB son especiales: están en la colección (lista, álbum, se pueden marcar), pero no cuentan
+// para el porcentaje de la colección base. Su valor sí cuenta para quien los tenga.
 const isSpecial = (c) => c.rarity === "Rara RGB";
 const regularCards = () => state.cards.filter((c) => !isSpecial(c));
 
 function cardsInScope() {
-  return state.set === "all" ? regularCards() : regularCards().filter((c) => c.set_id === state.set);
+  return state.set === "all" ? state.cards : state.cards.filter((c) => c.set_id === state.set);
 }
 
 function filtered() {
@@ -619,15 +560,15 @@ function summaryBlock(cards, ids, { sort = false, jump = null } = {}) {
 function renderSummary() {
   // Con «Todas», arriba va solo la colección base y las promos tienen su propio bloque debajo
   const all = state.set === "all";
-  const base = all ? regularCards().filter((c) => !isPromoSet(c.set_id) && !isOtherSet(c.set_id)) : cardsInScope();
-  renderVault();
+  // Los Mew RGB no cuentan para el porcentaje
+  const base = (all ? state.cards.filter((c) => !isPromoSet(c.set_id) && !isOtherSet(c.set_id)) : cardsInScope()).filter((c) => !isSpecial(c));
   $("#group-label").textContent = all ? "Colección base · entre todos" : isPromoSet(state.set) ? "Promos · entre todos" : "Entre todos";
   summaryBlock(base, { count: "group-count", bar: "group-bar", sub: "group-sub", members: "members" }, { sort: true });
 
   const promoSets = state.sets.filter((s) => s.kind === "promo");
   const promos = state.cards.filter((c) => isPromoSet(c.set_id));
   // Las promos van al final del bloque plegable «Ver progreso por tipo»
-  const showPromos = typesOpen && promos.length > 0 && !isPromoSet(state.set);
+  const showPromos = promos.length > 0 && !isPromoSet(state.set);
   $("#promo-summary").hidden = !showPromos;
   if (showPromos) {
     summaryBlock(promos, { count: "promo-count", bar: "promo-bar", sub: "promo-sub", members: "promo-members" }, { sort: true, jump: { set: promoSets.length === 1 ? promoSets[0].id : "all", rarity: "" } });
@@ -648,22 +589,14 @@ const chipTypes = () => cardTypes().filter((t) => !t.summaryOnly);
 
 // Icono propio de «para gradear»: una carta dentro de una funda rígida con etiqueta
 const SLAB_ICON = `<svg class="slab" viewBox="0 0 16 20" width="12" height="15" aria-hidden="true"><rect x="1" y="1" width="14" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="3" width="10" height="3.5" rx=".8" fill="#e3350d"/><rect x="4" y="8.5" width="8" height="8.5" rx=".8" fill="currentColor" opacity=".55"/></svg>`;
-let typesOpen = false; // el progreso por tipo empieza siempre plegado
 
 function renderTypeSummaries() {
   const types = cardTypes();
-  const btn = $("#btn-types");
-  const hasPromos = state.cards.some((c) => isPromoSet(c.set_id));
-  btn.hidden = !types.length && !hasPromos;
-  btn.setAttribute("aria-expanded", typesOpen);
-  btn.innerHTML = `${typesOpen ? "▴ Ocultar" : "▾ Ver"} progreso por tipo <small>${[...types.map((t) => t.label), ...(hasPromos ? ["Promos"] : [])].map(esc).join(" · ")}</small>`;
   const box = $("#type-summaries");
-  box.hidden = !typesOpen || !types.length;
-  if (box.hidden) return;
   if (box.dataset.types !== types.map((t) => t.id).join()) {
     box.dataset.types = types.map((t) => t.id).join();
     box.innerHTML = types
-      .map((t) => `<section class="summary type-summary">
+      .map((t) => `<section class="summary type-summary" data-slide="${esc(t.label)}">
         <div class="group-stat" data-r="${esc(t.rarity)}">
           <span class="label">${t.stars ? `<span class="stars">${t.stars}</span> ` : ""}${esc(t.label)} · entre todos</span>
           <strong id="t-${t.id}-count">0 / 0</strong>
@@ -678,11 +611,29 @@ function renderTypeSummaries() {
     const ids = { count: `t-${t.id}-count`, bar: `t-${t.id}-bar`, sub: `t-${t.id}-sub`, members: `t-${t.id}-members` };
     summaryBlock(state.cards.filter((c) => c.rarity === t.rarity), ids, { sort: true, jump: { set: "all", rarity: t.rarity } });
   }
+  renderCarouselNav();
+}
+
+// Etiquetas bajo el carrusel de progresos: dónde estás y salto a cada bloque
+function renderCarouselNav() {
+  const slides = [...document.querySelectorAll("#summary-carousel [data-slide]")].filter((s) => !s.hidden);
+  const nav = $("#carousel-nav");
+  nav.hidden = slides.length < 2;
+  nav.innerHTML = slides.map((s, i) => `<button type="button" data-goto="${i}">${esc(s.dataset.slide)}</button>`).join("");
+  updateCarouselNav();
+}
+function updateCarouselNav() {
+  const car = $("#summary-carousel");
+  const slides = [...car.querySelectorAll("[data-slide]")].filter((s) => !s.hidden);
+  const left = car.getBoundingClientRect().left;
+  let active = 0;
+  slides.forEach((s, i) => { if (Math.abs(s.getBoundingClientRect().left - left) < Math.abs(slides[active].getBoundingClientRect().left - left)) active = i; });
+  document.querySelectorAll("#carousel-nav [data-goto]").forEach((b) => b.classList.toggle("on", Number(b.dataset.goto) === active));
 }
 
 function renderSets() {
-  const chip = (s) => ({ id: s.id, name: s.name, kind: s.kind, n: regularCards().filter((c) => c.set_id === s.id).length });
-  const chips = [{ id: "all", name: "Todas", n: regularCards().length }].concat(state.sets.filter((s) => s.kind !== "other").map(chip));
+  const chip = (s) => ({ id: s.id, name: s.name, kind: s.kind, n: state.cards.filter((c) => c.set_id === s.id).length });
+  const chips = [{ id: "all", name: "Todas", n: state.cards.length }].concat(state.sets.filter((s) => s.kind !== "other").map(chip));
   const setChip = (s) =>
     `<button class="chip ${s.kind === "other" ? "other" : ""} ${state.set === s.id ? "on" : ""}" data-set="${esc(s.id)}" role="tab">${s.kind === "other" ? SLAB_ICON : ""}${esc(s.name)}<b>${s.n}</b></button>`;
   $("#sets").innerHTML = chips.map(setChip).join("") +
@@ -972,7 +923,7 @@ function albumQty(cardId) {
 }
 
 function albumCards() {
-  return state.sets.filter((s) => album.set === "all" || s.id === album.set).flatMap((s) => regularCards().filter((c) => c.set_id === s.id));
+  return state.sets.filter((s) => album.set === "all" || s.id === album.set).flatMap((s) => state.cards.filter((c) => c.set_id === s.id));
 }
 
 // Portada, interior, una hoja de fundas por cada 9 cartas en orden, guarda y contraportada
@@ -981,7 +932,7 @@ function albumPages() {
   let number = 0;
   for (const set of state.sets) {
     if (album.set !== "all" && set.id !== album.set) continue;
-    const cards = regularCards().filter((c) => c.set_id === set.id);
+    const cards = state.cards.filter((c) => c.set_id === set.id);
     for (let i = 0; i < cards.length; i += ALBUM_POCKETS) pages.push({ kind: "pockets", set, cards: cards.slice(i, i + ALBUM_POCKETS), number: ++number });
   }
   if (pages.length % 2) pages.push({ kind: "blank" });
@@ -2289,7 +2240,6 @@ function setupUI() {
     const b = e.target.closest("[data-trade-card]");
     if (b) tradeForCard(b.dataset.tradeCard, b.dataset.tradeUser);
   });
-  setupVault();
   $("#btn-spend").addEventListener("click", openSpend);
   $("#spend-body").addEventListener("submit", (e) => {
     const f = e.target.closest("[data-buy-form]");
@@ -2305,9 +2255,15 @@ function setupUI() {
     const d = e.target.closest("details.prod");
     if (d?.open) spend.open = d.dataset.prod;
   }, true);
-  $("#btn-types").addEventListener("click", () => {
-    typesOpen = !typesOpen;
-    renderSummary();
+  // Carrusel de progresos: deslizar en horizontal o tocar una etiqueta
+  let navTimer;
+  $("#summary-carousel").addEventListener("scroll", () => { clearTimeout(navTimer); navTimer = setTimeout(updateCarouselNav, 60); }, { passive: true });
+  $("#carousel-nav").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-goto]");
+    if (!b) return;
+    const car = $("#summary-carousel");
+    const slide = [...car.querySelectorAll("[data-slide]")].filter((s) => !s.hidden)[Number(b.dataset.goto)];
+    car.scrollTo({ left: slide.offsetLeft - car.offsetLeft, behavior: reduceMotion.matches ? "auto" : "smooth" });
   });
   $("#f-rarity").addEventListener("change", (e) => { state.rarity = e.target.value; render(); });
   $("#f-owner").addEventListener("change", (e) => { state.owner = e.target.value; render(); });
