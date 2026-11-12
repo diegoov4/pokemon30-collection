@@ -1813,7 +1813,7 @@ function purchaseLine(p, mine) {
 // Sobres: los abiertos salen de lo comprado (sin contar lo guardado sellado) × sobres que trae cada producto
 const PACK_TARGET = 10; // tope que os pusisteis: 10 € por sobre
 // Pull rates de referencia (comunidad / Reddit): 1 de cada N sobres
-const PULL_REF = { sir: 21, cla: 10 };
+const PULL_REF = { sir: 21, cla: 10, fut: 120 };
 const packsOf = (p) => (spend.products.find((x) => x.id === p.product)?.packs || 0) * p.qty;
 
 // Copias (con repes) de una rareza que tiene alguien
@@ -1823,10 +1823,10 @@ function packsHtml(people) {
   const rows = people
     .map((u) => {
       const opened = spend.purchases.filter((p) => p.user_id === u.id && !p.sealed).reduce((a, p) => a + packsOf(p), 0);
-      return { u, opened, sir: copiesOfRarity(u.id, "Rara ilustración especial"), cla: copiesOfRarity(u.id, "Clásica") };
+      return { u, opened, sir: copiesOfRarity(u.id, "Rara ilustración especial"), cla: copiesOfRarity(u.id, "Clásica"), fut: copiesOfRarity(u.id, "Rara futurista") };
     })
     .sort((a, b) => b.opened - a.opened);
-  const tot = rows.reduce((a, r) => ({ opened: a.opened + r.opened, sir: a.sir + r.sir, cla: a.cla + r.cla }), { opened: 0, sir: 0, cla: 0 });
+  const tot = rows.reduce((a, r) => ({ opened: a.opened + r.opened, sir: a.sir + r.sir, cla: a.cla + r.cla, fut: a.fut + r.fut }), { opened: 0, sir: 0, cla: 0, fut: 0 });
   const fmt1 = (v) => v.toLocaleString("es-ES", { maximumFractionDigits: 1 });
   // Cartas que tiene, cada cuántos sobres sale una y si está por encima o por debajo de lo normal
   const rate = (n, opened, ref) => {
@@ -1834,18 +1834,21 @@ function packsHtml(people) {
     const expected = opened / ref;
     const ratio = n / expected;
     const cls = ratio >= 1.15 ? "up" : ratio <= 0.85 ? "down" : "mid";
-    const label = { up: "▲ por encima", mid: "≈ en la media", down: "▼ por debajo" }[cls];
-    const badge = `<span class="pr ${cls}" title="Lo normal serían unas ${fmt1(expected)} en ${opened} sobres (1 cada ${ref})">${label}</span>`;
-    return `${n} <small>${!n ? `en ${opened} sobres` : opened >= n ? `1 cada ${fmt1(opened / n)} sobres` : `${fmt1(n / opened)} por sobre`}</small>${badge}`;
+    const arrow = { up: "▲", mid: "≈", down: "▼" }[cls];
+    const word = { up: "por encima", mid: "en la media", down: "por debajo" }[cls];
+    const badge = `<span class="pr ${cls}" title="Lo normal serían unas ${fmt1(expected)} en ${opened} sobres (1 cada ${ref})">${arrow}<span class="long"> ${word}</span></span>`;
+    // Texto largo en pantallas grandes, corto («1/5,4») en el móvil
+    const every = !n ? `<span class="long">en ${opened} sobres</span><span class="short">/${opened}</span>` : opened >= n ? `<span class="long">1 cada ${fmt1(opened / n)} sobres</span><span class="short">1/${fmt1(opened / n)}</span>` : `<span class="long">${fmt1(n / opened)} por sobre</span><span class="short">${fmt1(n / opened)}/sob.</span>`;
+    return `${n} <small>${every}</small>${badge}`;
   };
   return `<h3>📦 Sobres y pull rate</h3>
-    <p class="hint">Sobres abiertos según lo que ha comprado cada uno (lo guardado sellado no cuenta) y las SIR y Clásicas que tiene. Referencia de la comunidad: <b>SIR 1 de cada ${PULL_REF.sir} sobres</b> · <b>Clásicas 1 de cada ${PULL_REF.cla}</b>.</p>
+    <p class="hint">Sobres abiertos según lo que ha comprado cada uno (lo guardado sellado no cuenta) y las SIR y Clásicas que tiene. Referencia de la comunidad: <b>SIR 1 de cada ${PULL_REF.sir} sobres</b> · <b>Clásicas 1 de cada ${PULL_REF.cla}</b> · <b>Futuristas 1 de cada ${PULL_REF.fut}</b>.</p>
     <table class="spend-table packs-table">
-      <thead><tr><th>Persona</th><th>Sobres</th><th>SIR</th><th>Clásicas</th></tr></thead>
+      <thead><tr><th>Persona</th><th>Sobres</th><th>SIR</th><th>Clásicas</th><th>Futuristas</th></tr></thead>
       <tbody>${rows
-        .map((r) => `<tr class="${r.u.id === state.me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}</td><td>${r.opened}</td><td>${rate(r.sir, r.opened, PULL_REF.sir)}</td><td>${rate(r.cla, r.opened, PULL_REF.cla)}</td></tr>`)
+        .map((r) => `<tr class="${r.u.id === state.me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}</td><td>${r.opened}</td><td>${rate(r.sir, r.opened, PULL_REF.sir)}</td><td>${rate(r.cla, r.opened, PULL_REF.cla)}</td><td>${rate(r.fut, r.opened, PULL_REF.fut)}</td></tr>`)
         .join("")}
-        <tr class="total"><td>Entre todos</td><td>${tot.opened}</td><td>${rate(tot.sir, tot.opened, PULL_REF.sir)}</td><td>${rate(tot.cla, tot.opened, PULL_REF.cla)}</td></tr>
+        <tr class="total"><td>Entre todos</td><td>${tot.opened}</td><td>${rate(tot.sir, tot.opened, PULL_REF.sir)}</td><td>${rate(tot.cla, tot.opened, PULL_REF.cla)}</td><td>${rate(tot.fut, tot.opened, PULL_REF.fut)}</td></tr>
       </tbody>
     </table>`;
 }

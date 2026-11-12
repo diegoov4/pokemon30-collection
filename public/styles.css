@@ -855,3 +855,15 @@ td.price { white-space: nowrap; text-align: right; color: var(--muted); }
 .packs-table .pr.mid { color: var(--gold); }
 .packs-table .pr.down { color: #ff7a5c; }
 .spend-tiles.one { grid-template-columns: 1fr; max-width: 420px; }
+@media (max-width: 640px) {
+  .packs-table .pr { font-size: 9.5px; }
+  .packs-table td small { font-size: 9.5px; }
+  .packs-table th:nth-child(2), .packs-table td:nth-child(2) { width: 1%; }
+}
+.packs-table .short { display: none; }
+@media (max-width: 640px) {
+  .packs-table .long { display: none; }
+  .packs-table .short { display: inline; }
+  .packs-table .pr { display: inline; margin-left: 3px; font-size: 11px; }
+  .packs-table td small { display: inline; }
+}
