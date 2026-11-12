@@ -532,10 +532,20 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
   // Gastos: lo que ha pagado cada uno por producto. Lo ve todo el grupo; cada uno edita lo suyo.
   if (path === "/api/purchases" && req.method === "GET") {
     const { results } = await env.DB.prepare(
-      `SELECT p.id, p.user_id, p.product, p.name, p.qty, p.unit_price, p.source, p.bought_on, p.sealed, p.lang, p.value FROM purchases p
-       JOIN users u ON u.id = p.user_id WHERE u.is_admin = 0 ORDER BY p.bought_on IS NULL, p.bought_on, p.id`,
-    ).all();
-    return json({ products: PRODUCTS, sources: PURCHASE_SOURCES, purchases: results });
+      `SELECT p.id, p.user_id, p.product, p.name, p.qty, p.unit_price, p.priced, p.source, p.bought_on, p.sealed, p.lang, p.value, u.spend_private
+       FROM purchases p JOIN users u ON u.id = p.user_id WHERE u.is_admin = 0 ORDER BY p.bought_on IS NULL, p.bought_on, p.id`,
+    ).all<Record<string, unknown>>();
+    // Quien tiene los gastos en privado: el resto ve qué compró, pero no precios ni valores
+    const purchases = results.map(({ spend_private, ...p }) =>
+      spend_private && p.user_id !== user.id ? { ...p, unit_price: null, value: null, priced: 0, hidden: 1 } : p,
+    );
+    const priv = (await env.DB.prepare("SELECT id FROM users WHERE spend_private = 1 AND is_admin = 0").all<{ id: string }>()).results.map((r) => r.id);
+    return json({ products: PRODUCTS, sources: PURCHASE_SOURCES, purchases, private_users: priv, me_private: priv.includes(user.id) });
+  }
+  if (path === "/api/me/spend-private" && req.method === "PUT") {
+    const { private: on } = (await req.json()) as { private?: boolean };
+    await env.DB.prepare("UPDATE users SET spend_private = ? WHERE id = ?").bind(on ? 1 : 0, user.id).run();
+    return json({ ok: true, private: !!on });
   }
   if (path === "/api/purchases" && req.method === "POST") {
     if (user.is_admin) throw new HttpError(403, "El administrador no tiene compras");
@@ -546,15 +556,17 @@ async function handleApi(req: Request, env: Env, url: URL, ctx: ExecutionContext
     if ((product as { custom?: boolean }).custom && !name) throw new HttpError(400, "Escribe qué carta o producto es");
     const qty = Math.floor(Number(b.qty));
     if (!(qty >= 1 && qty <= 999)) throw new HttpError(400, "Cantidad no válida");
-    const price = Math.round(Number(String(b.unit_price ?? "").replace(",", ".")) * 100) / 100;
+    // El precio es opcional: sin precio la compra cuenta para los sobres, no para los gastos
+    const priced = String(b.unit_price ?? "").trim() !== "";
+    const price = priced ? Math.round(Number(String(b.unit_price).replace(",", ".")) * 100) / 100 : 0;
     if (!Number.isFinite(price) || price < 0 || price > 100000) throw new HttpError(400, "Precio no válido");
     const source = PURCHASE_SOURCES.some((x) => x.id === b.source) ? String(b.source) : null;
     const boughtOn = /^\d{4}-\d{2}-\d{2}$/.test(String(b.bought_on ?? "")) ? String(b.bought_on) : null;
     const sealedInfo = sealedFields(product, b);
     const res = await env.DB.prepare(
-      "INSERT INTO purchases (user_id, product, name, qty, unit_price, source, bought_on, sealed, lang, value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO purchases (user_id, product, name, qty, unit_price, priced, source, bought_on, sealed, lang, value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
-      .bind(user.id, product.id, (product as { custom?: boolean }).custom ? name : null, qty, price, source, boughtOn, sealedInfo.sealed, sealedInfo.lang, sealedInfo.value)
+      .bind(user.id, product.id, (product as { custom?: boolean }).custom ? name : null, qty, price, priced ? 1 : 0, source, boughtOn, sealedInfo.sealed, sealedInfo.lang, sealedInfo.value)
       .run();
     return json({ ok: true, id: res.meta.last_row_id });
   }

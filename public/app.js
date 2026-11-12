@@ -1770,7 +1770,9 @@ function setupTrades() {
 // ------------------------------------------------------------- gastos
 
 const spend = { products: [], sources: [], purchases: [], open: null, loaded: false };
-const lineTotal = (p) => p.qty * p.unit_price;
+// Las compras sin precio (o de alguien con los gastos en privado) no suman dinero
+const lineTotal = (p) => (p.priced && p.unit_price != null ? p.qty * p.unit_price : 0);
+const isPrivate = (userId) => userId !== state.me.id && (spend.private_users || []).includes(userId);
 const signed = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${euros.format(Math.abs(v))}`;
 
 async function openSpend() {
@@ -1800,12 +1802,12 @@ function purchaseLine(p, mine) {
   const src = spend.sources.find((x) => x.id === p.source)?.name;
   const prod = spend.products.find((x) => x.id === p.product);
   const badges = prod?.sealable
-    ? `<span class="lang-badge">${p.lang === "en" ? "EN" : "ES"}</span>${p.sealed ? `<span class="sealed-badge" title="Guardada sellada">📦 Sellada${p.value != null ? ` · vale ${euros.format(p.value)}` : " · sin valor"}</span>` : ""}`
+    ? `<span class="lang-badge">${p.lang === "en" ? "EN" : "ES"}</span>${p.sealed ? `<span class="sealed-badge" title="Guardada sellada">📦 Sellada${p.hidden ? "" : p.value != null ? ` · vale ${euros.format(p.value)}` : " · sin valor"}</span>` : ""}`
     : "";
   const when = p.bought_on ? new Date(`${p.bought_on}T12:00`).toLocaleDateString("es-ES") : "";
   const who = mine ? "" : `${avatar(state.users.find((u) => u.id === p.user_id) || { name: "?" })} `;
-  return `<li class="buy ${mine ? "mine" : ""}">${who}<span class="what">${badges}<span>${p.name ? `<b>${esc(p.name)}</b> · ` : ""}${p.qty} × ${euros.format(p.unit_price)}${src ? ` · ${esc(src)}` : ""}${when ? ` · ${esc(when)}` : ""}</span></span>
-    <span class="sum">${euros.format(lineTotal(p))}</span>${mine && prod?.sealable ? `<button type="button" class="del" data-edit-sealed="${p.id}" title="${p.sealed ? "Cambiar el valor actual" : "Marcar como guardada sellada"}" aria-label="Editar sellado">✏️</button>` : ""}${mine ? `<button type="button" class="del" data-del-purchase="${p.id}" title="Borrar esta compra" aria-label="Borrar esta compra">✕</button>` : ""}</li>`;
+  return `<li class="buy ${mine ? "mine" : ""}">${who}<span class="what">${badges}<span>${p.name ? `<b>${esc(p.name)}</b> · ` : ""}${p.qty} × ${p.hidden ? "🔒" : p.priced ? euros.format(p.unit_price) : "sin precio"}${src ? ` · ${esc(src)}` : ""}${when ? ` · ${esc(when)}` : ""}</span></span>
+    <span class="sum">${p.hidden ? "🔒" : p.priced ? euros.format(lineTotal(p)) : "—"}</span>${mine && prod?.sealable ? `<button type="button" class="del" data-edit-sealed="${p.id}" title="${p.sealed ? "Cambiar el valor actual" : "Marcar como guardada sellada"}" aria-label="Editar sellado">✏️</button>` : ""}${mine ? `<button type="button" class="del" data-del-purchase="${p.id}" title="Borrar esta compra" aria-label="Borrar esta compra">✕</button>` : ""}</li>`;
 }
 
 // Sobres: los abiertos salen de lo comprado (sin contar lo guardado sellado) × sobres que trae cada producto
@@ -1816,53 +1818,29 @@ const packsOf = (p) => (spend.products.find((x) => x.id === p.product)?.packs ||
 const copiesOfRarity = (userId, rarity) => state.cards.filter((c) => c.rarity === rarity).reduce((a, c) => a + qty(c.id, userId), 0);
 
 function packsHtml(people) {
-  const rows = people.map((u) => {
-    const own = spend.purchases.filter((p) => p.user_id === u.id);
-    const opened = own.filter((p) => !p.sealed).reduce((a, p) => a + packsOf(p), 0);
-    // Coste por sobre: todo lo que trae sobres (sellado incluido), contra el tope de 10 €/sobre
-    const withPacks = own.filter((p) => packsOf(p) > 0);
-    const paid = withPacks.reduce((a, p) => a + lineTotal(p), 0);
-    const packs = withPacks.reduce((a, p) => a + packsOf(p), 0);
-    const over = paid - packs * PACK_TARGET;
-    const sir = copiesOfRarity(u.id, "Rara ilustración especial");
-    const cla = copiesOfRarity(u.id, "Clásica");
-    return { u, opened, paid, packs, over, sir, cla };
-  });
-  const tot = rows.reduce((a, r) => ({ opened: a.opened + r.opened, paid: a.paid + r.paid, packs: a.packs + r.packs, over: a.over + r.over, sir: a.sir + r.sir, cla: a.cla + r.cla }), { opened: 0, paid: 0, packs: 0, over: 0, sir: 0, cla: 0 });
+  const rows = people
+    .map((u) => {
+      const opened = spend.purchases.filter((p) => p.user_id === u.id && !p.sealed).reduce((a, p) => a + packsOf(p), 0);
+      return { u, opened, sir: copiesOfRarity(u.id, "Rara ilustración especial"), cla: copiesOfRarity(u.id, "Clásica") };
+    })
+    .sort((a, b) => b.opened - a.opened);
+  const tot = rows.reduce((a, r) => ({ opened: a.opened + r.opened, sir: a.sir + r.sir, cla: a.cla + r.cla }), { opened: 0, sir: 0, cla: 0 });
   const fmt1 = (v) => v.toLocaleString("es-ES", { maximumFractionDigits: 1 });
   // Cartas que tiene y, debajo, cada cuántos sobres sale una
   const rate = (n, opened) =>
-    !opened ? "—" : !n ? `0 <small>en ${opened}<span class="u"> sobres</span></small>` : `${n} <small>${opened >= n ? `1 cada ${fmt1(opened / n)}<span class="u"> sobres</span>` : `${fmt1(n / opened)} por sobre`}</small>`;
-  const perPack = (r) => (r.packs ? euros.format(r.paid / r.packs) : "—");
-  const overTxt = (v, packs) => (!packs ? "—" : `<span class="${v > 0.5 ? "neg" : "pos"}">${v > 0.5 ? "+" : v < -0.5 ? "−" : ""}${euros.format(Math.abs(v))}</span>`);
+    !opened ? `${n || "—"}` : !n ? `0 <small>en ${opened} sobres</small>` : `${n} <small>${opened >= n ? `1 cada ${fmt1(opened / n)} sobres` : `${fmt1(n / opened)} por sobre`}</small>`;
   const est = spend.products.filter((x) => x.packsEst && spend.purchases.some((p) => p.product === x.id));
-  return `<h3>📦 Sobres</h3>
-    <p class="hint">Sobres abiertos según lo comprado (lo guardado sellado no cuenta) y lo que os ha tocado. El sobrecoste compara lo pagado con el tope de ${euros.format(PACK_TARGET)} por sobre.</p>
-    <div class="spend-tiles packs-tiles">
-      <div><span>Sobres abiertos entre todos</span><strong>${tot.opened.toLocaleString("es-ES")}</strong></div>
-      <div><span>Precio medio por sobre</span><strong>${tot.packs ? euros.format(tot.paid / tot.packs) : "—"}</strong></div>
-      <div class="${tot.over > 0.5 ? "neg" : "pos"}"><span>${tot.over > 0.5 ? "Sobrecoste" : "Ahorro"} frente a ${euros.format(PACK_TARGET)}/sobre</span><strong>${tot.packs ? euros.format(Math.abs(tot.over)) : "—"}</strong><small>Tendríais que haber pagado ${euros.format(tot.packs * PACK_TARGET)}</small></div>
-    </div>
-    <div class="packs-tables">
-      <table class="spend-table packs-table">
-        <thead><tr><th>Lo pagado</th><th>Abiertos</th><th>€/sobre</th><th>Sobrecoste</th></tr></thead>
-        <tbody>${rows
-          .sort((a, b) => b.opened - a.opened)
-          .map((r) => `<tr class="${r.u.id === state.me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}</td><td>${r.opened}</td><td>${perPack(r)}</td><td>${overTxt(r.over, r.packs)}</td></tr>`)
-          .join("")}
-          <tr class="total"><td>Entre todos</td><td>${tot.opened}</td><td>${perPack(tot)}</td><td>${overTxt(tot.over, tot.packs)}</td></tr>
-        </tbody>
-      </table>
-      <table class="spend-table packs-table">
-        <thead><tr><th>Lo que os ha tocado</th><th>SIR</th><th>Clásicas</th></tr></thead>
-        <tbody>${rows
-          .map((r) => `<tr class="${r.u.id === state.me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}</td><td>${rate(r.sir, r.opened)}</td><td>${rate(r.cla, r.opened)}</td></tr>`)
-          .join("")}
-          <tr class="total"><td>Entre todos</td><td>${rate(tot.sir, tot.opened)}</td><td>${rate(tot.cla, tot.opened)}</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p class="hint small">Pull rate aproximado: copias que tiene cada uno (con repes) entre sobres abiertos. Incluye cartas conseguidas por intercambio o compradas sueltas, así que puede salir algo más alto de lo real.${est.length ? ` Sobres por producto estimados (sin confirmar): ${est.map((x) => `${esc(x.name)} = ${x.packs}`).join(" · ")}.` : ""}</p>`;
+  return `<h3>📦 Sobres y pull rate</h3>
+    <p class="hint">Sobres abiertos según lo que ha comprado cada uno (lo guardado sellado no cuenta) y las SIR y Clásicas que tiene.</p>
+    <table class="spend-table packs-table">
+      <thead><tr><th>Persona</th><th>Sobres abiertos</th><th>SIR</th><th>Clásicas</th></tr></thead>
+      <tbody>${rows
+        .map((r) => `<tr class="${r.u.id === state.me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}</td><td>${r.opened}</td><td>${rate(r.sir, r.opened)}</td><td>${rate(r.cla, r.opened)}</td></tr>`)
+        .join("")}
+        <tr class="total"><td>Entre todos</td><td>${tot.opened}</td><td>${rate(tot.sir, tot.opened)}</td><td>${rate(tot.cla, tot.opened)}</td></tr>
+      </tbody>
+    </table>
+    <p class="hint small">Pull rate aproximado: copias que tiene cada uno (con repes) entre sus sobres abiertos. Incluye cartas conseguidas por intercambio o compradas sueltas, así que puede salir algo más alto de lo real.${est.length ? ` Sobres por producto estimados (sin confirmar): ${est.map((x) => `${esc(x.name)} = ${x.packs}`).join(" · ")}.` : ""}</p>`;
 }
 
 function renderSpend() {
@@ -1872,19 +1850,31 @@ function renderSpend() {
   const rows = people
     .map((u) => {
       const own = spend.purchases.filter((p) => p.user_id === u.id);
+      const priv = isPrivate(u.id);
       const spent = own.reduce((a, p) => a + lineTotal(p), 0);
       const cards = memberValue(u);
       const sealed = own.reduce((a, p) => a + sealedValue(p), 0);
       const value = cards + sealed;
-      return { u, spent, cards, sealed, value, profit: value - spent };
+      // Sobrecoste: solo compras con precio y que traen sobres, contra el tope de 10 €/sobre
+      const priced = own.filter((p) => p.priced && packsOf(p) > 0);
+      const packs = priced.reduce((a, p) => a + packsOf(p), 0);
+      const over = priced.reduce((a, p) => a + lineTotal(p), 0) - packs * PACK_TARGET;
+      return { u, priv, spent, cards, sealed, value, profit: value - spent, packs, over };
     })
-    .sort((a, b) => b.spent - a.spent || b.value - a.value);
-  const spent = rows.reduce((a, r) => a + r.spent, 0);
-  const value = rows.reduce((a, r) => a + r.value, 0);
-  const cardsTotal = rows.reduce((a, r) => a + r.cards, 0);
-  const sealedTotal = rows.reduce((a, r) => a + r.sealed, 0);
-  const anySealed = spend.purchases.some((p) => p.sealed);
+    .sort((a, b) => (a.priv - b.priv) || b.spent - a.spent || b.value - a.value);
+  // Los totales «entre todos» no incluyen a quien tiene los gastos en privado
+  const pub = rows.filter((r) => !r.priv);
+  const spent = pub.reduce((a, r) => a + r.spent, 0);
+  const value = pub.reduce((a, r) => a + r.value, 0);
+  const cardsTotal = pub.reduce((a, r) => a + r.cards, 0);
+  const sealedTotal = pub.reduce((a, r) => a + r.sealed, 0);
+  const anySealed = spend.purchases.some((p) => p.sealed && !p.hidden);
   const profit = value - spent;
+  const overPacks = pub.reduce((a, r) => a + r.packs, 0);
+  const over = pub.reduce((a, r) => a + r.over, 0);
+  const anyPriv = rows.some((r) => r.priv);
+  const lock = `<span class="lock">🔒 privado</span>`;
+  const overTxt = (v, packs) => (!packs ? "—" : `<span class="${v > 0.5 ? "neg" : "pos"}">${v > 0.5 ? "+" : v < -0.5 ? "−" : ""}${euros.format(Math.abs(v))}</span>`);
 
   const groups = [...new Set(spend.products.map((p) => p.group))];
   const productsHtml = groups
@@ -1898,12 +1888,12 @@ function renderSpend() {
         const mySum = mine.reduce((a, p) => a + lineTotal(p), 0);
         const otherQty = others.reduce((a, p) => a + p.qty, 0);
         return `<details class="prod ${myQty ? "has" : ""}" data-prod="${esc(prod.id)}" ${spend.open === prod.id ? "open" : ""}>
-          <summary><span class="pn">${esc(prod.name)}${prod.packs ? ` <small class="pk">· ${prod.packs} sobre${prod.packs === 1 ? "" : "s"}${prod.packsEst ? " ≈" : ""}</small>` : ""}</span><span class="pq">${myQty ? `<b>${myQty} × · ${euros.format(mySum)}</b>` : ""}${otherQty ? `<small>${otherQty} del grupo</small>` : ""}</span></summary>
+          <summary><span class="pn">${esc(prod.name)}${prod.packs ? ` <small class="pk">· ${prod.packs} sobre${prod.packs === 1 ? "" : "s"}${prod.packsEst ? " ≈" : ""}</small>` : ""}</span><span class="pq">${myQty ? `<b>${myQty} ×${mySum ? ` · ${euros.format(mySum)}` : ""}</b>` : ""}${otherQty ? `<small>${otherQty} del grupo</small>` : ""}</span></summary>
           ${mine.length ? `<ul class="buys">${mine.map((p) => purchaseLine(p, true)).join("")}</ul>` : ""}
           ${me.is_admin ? "" : `<form class="buy-form" data-buy-form="${esc(prod.id)}">
             ${prod.custom ? `<label class="wide">${prod.id === "single" ? "¿Qué carta?" : "¿Qué producto?"} <input name="name" maxlength="80" required placeholder="${prod.id === "single" ? "Pikachu ex SIR 150/128" : "Lote de sobres"}"></label>` : ""}
             <label>Cantidad <input name="qty" type="number" min="1" max="999" value="1" required></label>
-            <label>€ por unidad <input name="unit_price" inputmode="decimal" placeholder="0,00" required></label>
+            <label>€ por unidad <input name="unit_price" inputmode="decimal" placeholder="Opcional"></label>
             <label>Dónde <select name="source"><option value="">—</option>${spend.sources.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("")}</select></label>
             <label>Fecha <input name="bought_on" type="date"></label>
             ${prod.sealable ? `<div class="sealed-row">
@@ -1920,19 +1910,28 @@ function renderSpend() {
     .join("");
 
   $("#spend-body").innerHTML = `
-    <div class="spend-tiles">
+    ${me.is_admin ? "" : `<label class="pref-check spend-private"><input type="checkbox" id="spend-private" ${spend.me_private ? "checked" : ""}> 🔒 Mis gastos en privado <small>— el grupo verá lo que compras y tus sobres, pero no precios, gasto ni beneficio</small></label>`}
+    <div class="spend-tiles four">
       <div><span>Gastado entre todos</span><strong>${euros.format(spent)}</strong></div>
       <div><span>${anySealed ? "Valor de cartas + sellado" : `Valor de las cartas (${metric})`}</span><strong>${euros.format(value)}</strong>${anySealed ? `<small>Cartas ${euros.format(cardsTotal)} · sellado ${euros.format(sealedTotal)}</small>` : ""}</div>
       <div class="${profit >= 0 ? "pos" : "neg"}"><span>Beneficio si se vendiera todo</span><strong>${signed(profit)}</strong></div>
+      <div class="${over > 0.5 ? "neg" : "pos"}"><span>${over > 0.5 ? "Sobrecoste" : "Ahorro"} frente a ${euros.format(PACK_TARGET)}/sobre</span><strong>${overPacks ? euros.format(Math.abs(over)) : "—"}</strong>${overPacks ? `<small>${overPacks} sobres: tendríais que haber pagado ${euros.format(overPacks * PACK_TARGET)}</small>` : ""}</div>
     </div>
-    <table class="spend-table">
-      <thead><tr><th>Persona</th><th>Gastado</th><th>Valor cartas</th>${anySealed ? "<th>Sellado</th>" : ""}<th>Beneficio</th></tr></thead>
-      <tbody>${rows.map((r) => `<tr class="${r.u.id === me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}${r.u.id === me.id ? " (tú)" : ""}</td><td>${euros.format(r.spent)}</td><td>${euros.format(r.cards)}</td>${anySealed ? `<td>${r.sealed ? euros.format(r.sealed) : "—"}</td>` : ""}<td class="${r.profit >= 0 ? "pos" : "neg"}">${signed(r.profit)}</td></tr>`).join("")}</tbody>
-    </table>
+    <div class="table-scroll"><table class="spend-table money-table">
+      <thead><tr><th>Persona</th><th>Gastado</th><th>Valor cartas</th>${anySealed ? `<th class="c-sealed">Sellado</th>` : ""}<th>Beneficio</th><th>Sobrecoste</th></tr></thead>
+      <tbody>${rows
+        .map((r) =>
+          r.priv
+            ? `<tr><td>${avatar(r.u)} ${esc(r.u.name)}</td><td>${lock}</td><td>${euros.format(r.cards)}</td>${anySealed ? `<td class="c-sealed">${lock}</td>` : ""}<td>${lock}</td><td>${lock}</td></tr>`
+            : `<tr class="${r.u.id === me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}${r.u.id === me.id ? " (tú)" : ""}</td><td>${euros.format(r.spent)}</td><td>${euros.format(r.cards)}</td>${anySealed ? `<td class="c-sealed">${r.sealed ? euros.format(r.sealed) : "—"}</td>` : ""}<td class="${r.profit >= 0 ? "pos" : "neg"}">${signed(r.profit)}</td><td>${overTxt(r.over, r.packs)}</td></tr>`,
+        )
+        .join("")}</tbody>
+    </table></div>
+    ${anyPriv ? `<p class="hint small">🔒 Quien tiene los gastos en privado no entra en los totales de dinero.</p>` : ""}
     <p class="hint">El valor de las cartas es el de Cardmarket (${metric}) para las copias en español, el de TCGplayer (el que usa Collectr) para las inglesas y Cardmarket como aproximado para japonés y chino, más el valor que cada uno ha puesto a lo que guarda sellado (ETB y UPC). Es una estimación: vender tiene comisiones y envíos.</p>
     ${packsHtml(people)}
     <h3>${me.is_admin ? "Compras del grupo" : "Mis compras"}</h3>
-    <p class="hint">${me.is_admin ? "Toca un producto para ver lo que ha pagado cada uno." : "Toca un producto y añade lo que pagaste. Si compraste varios a precios distintos, añade una compra por cada precio."}</p>
+    <p class="hint">${me.is_admin ? "Toca un producto para ver lo que ha comprado cada uno." : "Toca un producto y añade lo que compraste. El precio es opcional: sin él, cuenta para los sobres pero no para los gastos. Si compraste varios a precios distintos, añade una compra por cada precio."}</p>
     <div class="prods">${productsHtml}</div>`;
 }
 
@@ -2302,6 +2301,17 @@ function setupUI() {
   $("#spend-body").addEventListener("submit", (e) => {
     const f = e.target.closest("[data-buy-form]");
     if (f) { e.preventDefault(); addPurchase(f); }
+  });
+  $("#spend-body").addEventListener("change", async (e) => {
+    if (e.target.id !== "spend-private") return;
+    try {
+      await api("/api/me/spend-private", { method: "PUT", body: JSON.stringify({ private: e.target.checked }) });
+      await loadSpend();
+      toast(e.target.checked ? "Tus gastos ya no los ve el grupo" : "Tus gastos vuelven a ser visibles");
+    } catch (err) {
+      toast(`No se pudo cambiar: ${err.message}`);
+      e.target.checked = !e.target.checked;
+    }
   });
   $("#spend-body").addEventListener("click", (e) => {
     const d = e.target.closest("[data-del-purchase]");

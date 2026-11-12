@@ -836,5 +836,17 @@ td.price { white-space: nowrap; text-align: right; color: var(--muted); }
   .packs-table .avatar { display: none; }
   .packs-table td small { display: block; }
 }
-.packs-tables { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; align-items: start; }
-@media (max-width: 760px) { .packs-tables { grid-template-columns: 1fr; gap: 10px; } }
+.spend-tiles.four { grid-template-columns: repeat(4, 1fr); }
+.spend-private { margin: 0 0 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; color: var(--text); }
+.spend-private small { color: var(--muted); font-size: 12px; }
+.lock { color: var(--muted); font-size: 12px; white-space: nowrap; }
+@media (max-width: 760px) { .spend-tiles.four { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 640px) {
+  .money-table { font-size: 12px; }
+  .money-table th { font-size: 10.5px; padding: 5px 3px; white-space: normal; }
+  .money-table td { padding: 6px 3px; }
+  .money-table td:first-child { display: table-cell; }
+  .money-table .avatar { display: none; }
+  .money-table .lock { font-size: 10.5px; }
+  .money-table .c-sealed { display: none; }
+}
