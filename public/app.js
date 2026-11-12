@@ -1808,6 +1808,63 @@ function purchaseLine(p, mine) {
     <span class="sum">${euros.format(lineTotal(p))}</span>${mine && prod?.sealable ? `<button type="button" class="del" data-edit-sealed="${p.id}" title="${p.sealed ? "Cambiar el valor actual" : "Marcar como guardada sellada"}" aria-label="Editar sellado">✏️</button>` : ""}${mine ? `<button type="button" class="del" data-del-purchase="${p.id}" title="Borrar esta compra" aria-label="Borrar esta compra">✕</button>` : ""}</li>`;
 }
 
+// Sobres: los abiertos salen de lo comprado (sin contar lo guardado sellado) × sobres que trae cada producto
+const PACK_TARGET = 10; // tope que os pusisteis: 10 € por sobre
+const packsOf = (p) => (spend.products.find((x) => x.id === p.product)?.packs || 0) * p.qty;
+
+// Copias (con repes) de una rareza que tiene alguien
+const copiesOfRarity = (userId, rarity) => state.cards.filter((c) => c.rarity === rarity).reduce((a, c) => a + qty(c.id, userId), 0);
+
+function packsHtml(people) {
+  const rows = people.map((u) => {
+    const own = spend.purchases.filter((p) => p.user_id === u.id);
+    const opened = own.filter((p) => !p.sealed).reduce((a, p) => a + packsOf(p), 0);
+    // Coste por sobre: todo lo que trae sobres (sellado incluido), contra el tope de 10 €/sobre
+    const withPacks = own.filter((p) => packsOf(p) > 0);
+    const paid = withPacks.reduce((a, p) => a + lineTotal(p), 0);
+    const packs = withPacks.reduce((a, p) => a + packsOf(p), 0);
+    const over = paid - packs * PACK_TARGET;
+    const sir = copiesOfRarity(u.id, "Rara ilustración especial");
+    const cla = copiesOfRarity(u.id, "Clásica");
+    return { u, opened, paid, packs, over, sir, cla };
+  });
+  const tot = rows.reduce((a, r) => ({ opened: a.opened + r.opened, paid: a.paid + r.paid, packs: a.packs + r.packs, over: a.over + r.over, sir: a.sir + r.sir, cla: a.cla + r.cla }), { opened: 0, paid: 0, packs: 0, over: 0, sir: 0, cla: 0 });
+  const fmt1 = (v) => v.toLocaleString("es-ES", { maximumFractionDigits: 1 });
+  // Cartas que tiene y, debajo, cada cuántos sobres sale una
+  const rate = (n, opened) =>
+    !opened ? "—" : !n ? `0 <small>en ${opened}<span class="u"> sobres</span></small>` : `${n} <small>${opened >= n ? `1 cada ${fmt1(opened / n)}<span class="u"> sobres</span>` : `${fmt1(n / opened)} por sobre`}</small>`;
+  const perPack = (r) => (r.packs ? euros.format(r.paid / r.packs) : "—");
+  const overTxt = (v, packs) => (!packs ? "—" : `<span class="${v > 0.5 ? "neg" : "pos"}">${v > 0.5 ? "+" : v < -0.5 ? "−" : ""}${euros.format(Math.abs(v))}</span>`);
+  const est = spend.products.filter((x) => x.packsEst && spend.purchases.some((p) => p.product === x.id));
+  return `<h3>📦 Sobres</h3>
+    <p class="hint">Sobres abiertos según lo comprado (lo guardado sellado no cuenta) y lo que os ha tocado. El sobrecoste compara lo pagado con el tope de ${euros.format(PACK_TARGET)} por sobre.</p>
+    <div class="spend-tiles packs-tiles">
+      <div><span>Sobres abiertos entre todos</span><strong>${tot.opened.toLocaleString("es-ES")}</strong></div>
+      <div><span>Precio medio por sobre</span><strong>${tot.packs ? euros.format(tot.paid / tot.packs) : "—"}</strong></div>
+      <div class="${tot.over > 0.5 ? "neg" : "pos"}"><span>${tot.over > 0.5 ? "Sobrecoste" : "Ahorro"} frente a ${euros.format(PACK_TARGET)}/sobre</span><strong>${tot.packs ? euros.format(Math.abs(tot.over)) : "—"}</strong><small>Tendríais que haber pagado ${euros.format(tot.packs * PACK_TARGET)}</small></div>
+    </div>
+    <div class="packs-tables">
+      <table class="spend-table packs-table">
+        <thead><tr><th>Lo pagado</th><th>Abiertos</th><th>€/sobre</th><th>Sobrecoste</th></tr></thead>
+        <tbody>${rows
+          .sort((a, b) => b.opened - a.opened)
+          .map((r) => `<tr class="${r.u.id === state.me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}</td><td>${r.opened}</td><td>${perPack(r)}</td><td>${overTxt(r.over, r.packs)}</td></tr>`)
+          .join("")}
+          <tr class="total"><td>Entre todos</td><td>${tot.opened}</td><td>${perPack(tot)}</td><td>${overTxt(tot.over, tot.packs)}</td></tr>
+        </tbody>
+      </table>
+      <table class="spend-table packs-table">
+        <thead><tr><th>Lo que os ha tocado</th><th>SIR</th><th>Clásicas</th></tr></thead>
+        <tbody>${rows
+          .map((r) => `<tr class="${r.u.id === state.me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}</td><td>${rate(r.sir, r.opened)}</td><td>${rate(r.cla, r.opened)}</td></tr>`)
+          .join("")}
+          <tr class="total"><td>Entre todos</td><td>${rate(tot.sir, tot.opened)}</td><td>${rate(tot.cla, tot.opened)}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint small">Pull rate aproximado: copias que tiene cada uno (con repes) entre sobres abiertos. Incluye cartas conseguidas por intercambio o compradas sueltas, así que puede salir algo más alto de lo real.${est.length ? ` Sobres por producto estimados (sin confirmar): ${est.map((x) => `${esc(x.name)} = ${x.packs}`).join(" · ")}.` : ""}</p>`;
+}
+
 function renderSpend() {
   const me = state.me;
   const people = collectors();
@@ -1841,7 +1898,7 @@ function renderSpend() {
         const mySum = mine.reduce((a, p) => a + lineTotal(p), 0);
         const otherQty = others.reduce((a, p) => a + p.qty, 0);
         return `<details class="prod ${myQty ? "has" : ""}" data-prod="${esc(prod.id)}" ${spend.open === prod.id ? "open" : ""}>
-          <summary><span class="pn">${esc(prod.name)}</span><span class="pq">${myQty ? `<b>${myQty} × · ${euros.format(mySum)}</b>` : ""}${otherQty ? `<small>${otherQty} del grupo</small>` : ""}</span></summary>
+          <summary><span class="pn">${esc(prod.name)}${prod.packs ? ` <small class="pk">· ${prod.packs} sobre${prod.packs === 1 ? "" : "s"}${prod.packsEst ? " ≈" : ""}</small>` : ""}</span><span class="pq">${myQty ? `<b>${myQty} × · ${euros.format(mySum)}</b>` : ""}${otherQty ? `<small>${otherQty} del grupo</small>` : ""}</span></summary>
           ${mine.length ? `<ul class="buys">${mine.map((p) => purchaseLine(p, true)).join("")}</ul>` : ""}
           ${me.is_admin ? "" : `<form class="buy-form" data-buy-form="${esc(prod.id)}">
             ${prod.custom ? `<label class="wide">${prod.id === "single" ? "¿Qué carta?" : "¿Qué producto?"} <input name="name" maxlength="80" required placeholder="${prod.id === "single" ? "Pikachu ex SIR 150/128" : "Lote de sobres"}"></label>` : ""}
@@ -1873,6 +1930,7 @@ function renderSpend() {
       <tbody>${rows.map((r) => `<tr class="${r.u.id === me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}${r.u.id === me.id ? " (tú)" : ""}</td><td>${euros.format(r.spent)}</td><td>${euros.format(r.cards)}</td>${anySealed ? `<td>${r.sealed ? euros.format(r.sealed) : "—"}</td>` : ""}<td class="${r.profit >= 0 ? "pos" : "neg"}">${signed(r.profit)}</td></tr>`).join("")}</tbody>
     </table>
     <p class="hint">El valor de las cartas es el de Cardmarket (${metric}) para las copias en español, el de TCGplayer (el que usa Collectr) para las inglesas y Cardmarket como aproximado para japonés y chino, más el valor que cada uno ha puesto a lo que guarda sellado (ETB y UPC). Es una estimación: vender tiene comisiones y envíos.</p>
+    ${packsHtml(people)}
     <h3>${me.is_admin ? "Compras del grupo" : "Mis compras"}</h3>
     <p class="hint">${me.is_admin ? "Toca un producto para ver lo que ha pagado cada uno." : "Toca un producto y añade lo que pagaste. Si compraste varios a precios distintos, añade una compra por cada precio."}</p>
     <div class="prods">${productsHtml}</div>`;

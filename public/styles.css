@@ -814,3 +814,27 @@ td.price { white-space: nowrap; text-align: right; color: var(--muted); }
 .carousel-nav button:first-child::after { content: " →"; opacity: .6; }
 .carousel-nav button.on:first-child::after { opacity: .8; }
 @media (prefers-reduced-motion: reduce) { .summary-carousel { scroll-behavior: auto; } }
+
+/* ------- sobres (gastos) */
+.table-scroll { overflow-x: auto; }
+.packs-table td small { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
+.packs-table tr.total td { font-weight: 700; border-top: 2px solid var(--line); }
+.packs-table td:first-child { white-space: nowrap; }
+.spend-dialog .hint.small { font-size: 12px; }
+.prod summary .pk { color: var(--muted); font-weight: 400; }
+@media (max-width: 640px) {
+  .packs-tiles { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .packs-tiles div { padding: 8px; }
+  .packs-tiles span { font-size: 10.5px; line-height: 1.2; }
+  .packs-tiles strong { font-size: 16px; }
+  .packs-tiles small { font-size: 10px; }
+  .packs-table { font-size: 12px; }
+  .packs-table th { font-size: 10.5px; padding: 5px 3px; }
+  .packs-table td { padding: 6px 3px; white-space: normal; }
+  .packs-table td:first-child { white-space: nowrap; display: table-cell; }
+  .packs-table td small { white-space: nowrap; font-size: 10px; }
+  .packs-table .avatar { display: none; }
+  .packs-table td small { display: block; }
+}
+.packs-tables { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 760px) { .packs-tables { grid-template-columns: 1fr; gap: 10px; } }
