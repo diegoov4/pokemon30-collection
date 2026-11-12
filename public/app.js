@@ -1838,7 +1838,6 @@ function packsHtml(people) {
     const badge = `<span class="pr ${cls}" title="Lo normal serían unas ${fmt1(expected)} en ${opened} sobres (1 cada ${ref})">${label}</span>`;
     return `${n} <small>${!n ? `en ${opened} sobres` : opened >= n ? `1 cada ${fmt1(opened / n)} sobres` : `${fmt1(n / opened)} por sobre`}</small>${badge}`;
   };
-  const est = spend.products.filter((x) => x.packsEst && spend.purchases.some((p) => p.product === x.id));
   return `<h3>📦 Sobres y pull rate</h3>
     <p class="hint">Sobres abiertos según lo que ha comprado cada uno (lo guardado sellado no cuenta) y las SIR y Clásicas que tiene. Referencia de la comunidad: <b>SIR 1 de cada ${PULL_REF.sir} sobres</b> · <b>Clásicas 1 de cada ${PULL_REF.cla}</b>.</p>
     <table class="spend-table packs-table">
@@ -1848,8 +1847,7 @@ function packsHtml(people) {
         .join("")}
         <tr class="total"><td>Entre todos</td><td>${tot.opened}</td><td>${rate(tot.sir, tot.opened, PULL_REF.sir)}</td><td>${rate(tot.cla, tot.opened, PULL_REF.cla)}</td></tr>
       </tbody>
-    </table>
-    <p class="hint small">Pull rate aproximado: copias que tiene cada uno (con repes) entre sus sobres abiertos. Incluye cartas conseguidas por intercambio o compradas sueltas, así que puede salir algo más alto de lo real.${est.length ? ` Sobres por producto estimados (sin confirmar): ${est.map((x) => `${esc(x.name)} = ${x.packs}`).join(" · ")}.` : ""}</p>`;
+    </table>`;
 }
 
 function renderSpend() {
@@ -1865,7 +1863,8 @@ function renderSpend() {
       const sealed = own.reduce((a, p) => a + sealedValue(p), 0);
       const value = cards + sealed;
       // Sobrecoste: solo compras con precio y que traen sobres, contra el tope de 10 €/sobre
-      const priced = own.filter((p) => p.priced && packsOf(p) > 0);
+      // Mismos sobres que «Sobres y pull rate»: lo guardado sellado no cuenta (es inversión, no sobres abiertos)
+      const priced = own.filter((p) => p.priced && !p.sealed && packsOf(p) > 0);
       const packs = priced.reduce((a, p) => a + packsOf(p), 0);
       const over = priced.reduce((a, p) => a + lineTotal(p), 0) - packs * PACK_TARGET;
       return { u, priv, spent, cards, sealed, value, profit: value - spent, packs, over };
@@ -1937,8 +1936,6 @@ function renderSpend() {
         )
         .join("")}</tbody>
     </table></div>
-    ${anyPriv ? `<p class="hint small">🔒 Quien tiene los gastos en privado no entra en los totales de dinero.</p>` : ""}
-    <p class="hint">El valor de las cartas es el de Cardmarket (${metric}) para las copias en español, el de TCGplayer (el que usa Collectr) para las inglesas y Cardmarket como aproximado para japonés y chino, más el valor que cada uno ha puesto a lo que guarda sellado (ETB y UPC). Es una estimación: vender tiene comisiones y envíos.</p>
     ${packsHtml(people)}
     <h3>${me.is_admin ? "Compras del grupo" : "Mis compras"}</h3>
     <p class="hint">${me.is_admin ? "Toca un producto para ver lo que ha comprado cada uno." : "Toca un producto y añade lo que compraste. El precio es opcional: sin él, cuenta para los sobres pero no para los gastos. Si compraste varios a precios distintos, añade una compra por cada precio."}</p>
