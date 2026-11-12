@@ -1812,6 +1812,8 @@ function purchaseLine(p, mine) {
 
 // Sobres: los abiertos salen de lo comprado (sin contar lo guardado sellado) × sobres que trae cada producto
 const PACK_TARGET = 10; // tope que os pusisteis: 10 € por sobre
+// Pull rates de referencia (comunidad / Reddit): 1 de cada N sobres
+const PULL_REF = { sir: 21, cla: 10 };
 const packsOf = (p) => (spend.products.find((x) => x.id === p.product)?.packs || 0) * p.qty;
 
 // Copias (con repes) de una rareza que tiene alguien
@@ -1826,18 +1828,25 @@ function packsHtml(people) {
     .sort((a, b) => b.opened - a.opened);
   const tot = rows.reduce((a, r) => ({ opened: a.opened + r.opened, sir: a.sir + r.sir, cla: a.cla + r.cla }), { opened: 0, sir: 0, cla: 0 });
   const fmt1 = (v) => v.toLocaleString("es-ES", { maximumFractionDigits: 1 });
-  // Cartas que tiene y, debajo, cada cuántos sobres sale una
-  const rate = (n, opened) =>
-    !opened ? `${n || "—"}` : !n ? `0 <small>en ${opened} sobres</small>` : `${n} <small>${opened >= n ? `1 cada ${fmt1(opened / n)} sobres` : `${fmt1(n / opened)} por sobre`}</small>`;
+  // Cartas que tiene, cada cuántos sobres sale una y si está por encima o por debajo de lo normal
+  const rate = (n, opened, ref) => {
+    if (!opened) return `${n || "—"}`;
+    const expected = opened / ref;
+    const ratio = n / expected;
+    const cls = ratio >= 1.15 ? "up" : ratio <= 0.85 ? "down" : "mid";
+    const label = { up: "▲ por encima", mid: "≈ en la media", down: "▼ por debajo" }[cls];
+    const badge = `<span class="pr ${cls}" title="Lo normal serían unas ${fmt1(expected)} en ${opened} sobres (1 cada ${ref})">${label}</span>`;
+    return `${n} <small>${!n ? `en ${opened} sobres` : opened >= n ? `1 cada ${fmt1(opened / n)} sobres` : `${fmt1(n / opened)} por sobre`}</small>${badge}`;
+  };
   const est = spend.products.filter((x) => x.packsEst && spend.purchases.some((p) => p.product === x.id));
   return `<h3>📦 Sobres y pull rate</h3>
-    <p class="hint">Sobres abiertos según lo que ha comprado cada uno (lo guardado sellado no cuenta) y las SIR y Clásicas que tiene.</p>
+    <p class="hint">Sobres abiertos según lo que ha comprado cada uno (lo guardado sellado no cuenta) y las SIR y Clásicas que tiene. Referencia de la comunidad: <b>SIR 1 de cada ${PULL_REF.sir} sobres</b> · <b>Clásicas 1 de cada ${PULL_REF.cla}</b>.</p>
     <table class="spend-table packs-table">
-      <thead><tr><th>Persona</th><th>Sobres abiertos</th><th>SIR</th><th>Clásicas</th></tr></thead>
+      <thead><tr><th>Persona</th><th>Sobres</th><th>SIR</th><th>Clásicas</th></tr></thead>
       <tbody>${rows
-        .map((r) => `<tr class="${r.u.id === state.me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}</td><td>${r.opened}</td><td>${rate(r.sir, r.opened)}</td><td>${rate(r.cla, r.opened)}</td></tr>`)
+        .map((r) => `<tr class="${r.u.id === state.me.id ? "self" : ""}"><td>${avatar(r.u)} ${esc(r.u.name)}</td><td>${r.opened}</td><td>${rate(r.sir, r.opened, PULL_REF.sir)}</td><td>${rate(r.cla, r.opened, PULL_REF.cla)}</td></tr>`)
         .join("")}
-        <tr class="total"><td>Entre todos</td><td>${tot.opened}</td><td>${rate(tot.sir, tot.opened)}</td><td>${rate(tot.cla, tot.opened)}</td></tr>
+        <tr class="total"><td>Entre todos</td><td>${tot.opened}</td><td>${rate(tot.sir, tot.opened, PULL_REF.sir)}</td><td>${rate(tot.cla, tot.opened, PULL_REF.cla)}</td></tr>
       </tbody>
     </table>
     <p class="hint small">Pull rate aproximado: copias que tiene cada uno (con repes) entre sus sobres abiertos. Incluye cartas conseguidas por intercambio o compradas sueltas, así que puede salir algo más alto de lo real.${est.length ? ` Sobres por producto estimados (sin confirmar): ${est.map((x) => `${esc(x.name)} = ${x.packs}`).join(" · ")}.` : ""}</p>`;
