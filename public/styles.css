@@ -854,3 +854,4 @@ td.price { white-space: nowrap; text-align: right; color: var(--muted); }
 .packs-table .pr.up { color: #4ade80; }
 .packs-table .pr.mid { color: var(--gold); }
 .packs-table .pr.down { color: #ff7a5c; }
+.spend-tiles.one { grid-template-columns: 1fr; max-width: 420px; }

@@ -1920,12 +1920,13 @@ function renderSpend() {
 
   $("#spend-body").innerHTML = `
     ${me.is_admin ? "" : `<label class="pref-check spend-private"><input type="checkbox" id="spend-private" ${spend.me_private ? "checked" : ""}> 🔒 Mis gastos en privado <small>— el grupo verá lo que compras y tus sobres, pero no precios, gasto ni beneficio</small></label>`}
-    <div class="spend-tiles four">
-      <div><span>Gastado entre todos</span><strong>${euros.format(spent)}</strong></div>
-      <div><span>${anySealed ? "Valor de cartas + sellado" : `Valor de las cartas (${metric})`}</span><strong>${euros.format(value)}</strong>${anySealed ? `<small>Cartas ${euros.format(cardsTotal)} · sellado ${euros.format(sealedTotal)}</small>` : ""}</div>
-      <div class="${profit >= 0 ? "pos" : "neg"}"><span>Beneficio si se vendiera todo</span><strong>${signed(profit)}</strong></div>
-      <div class="${over > 0.5 ? "neg" : "pos"}"><span>${over > 0.5 ? "Sobrecoste" : "Ahorro"} frente a ${euros.format(PACK_TARGET)}/sobre</span><strong>${overPacks ? euros.format(Math.abs(over)) : "—"}</strong>${overPacks ? `<small>${overPacks} sobres: tendríais que haber pagado ${euros.format(overPacks * PACK_TARGET)}</small>` : ""}</div>
-    </div>
+    ${(() => {
+      // Solo el resumen personal: mi sobrecoste o ahorro frente a 10 €/sobre (cada uno ve el suyo)
+      const mine = rows.find((r) => r.u.id === me.id);
+      if (!mine) return "";
+      const o = mine.over;
+      return `<div class="spend-tiles one"><div class="${o > 0.5 ? "neg" : "pos"}"><span>Tu ${o > 0.5 ? "sobrecoste" : "ahorro"} frente a un precio justo de ${euros.format(PACK_TARGET)}/sobre</span><strong>${mine.packs ? euros.format(Math.abs(o)) : "—"}</strong><small>${mine.packs ? `${mine.packs} sobres con precio: a ${euros.format(PACK_TARGET)} habrías pagado ${euros.format(mine.packs * PACK_TARGET)}` : "Apunta tus compras con precio para calcularlo"}</small></div></div>`;
+    })()}
     <div class="table-scroll"><table class="spend-table money-table">
       <thead><tr><th>Persona</th><th>Gastado</th><th>Valor cartas</th>${anySealed ? `<th class="c-sealed">Sellado</th>` : ""}<th>Beneficio</th><th>Sobrecoste</th></tr></thead>
       <tbody>${rows
